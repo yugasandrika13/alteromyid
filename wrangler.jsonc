@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "alteromyid",
+  "main": "_worker.js",
+  "compatibility_date": "2025-09-27",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://altero.my.id,https://www.altero.my.id",
+    "APP_GAS_URL": "https://script.google.com/macros/s/AKfycbws7_zJ45J651PTrryxsoHrtgLdrJpeadt0HLa0AbHHg1zaKNX4jVoeyqU-lZwq9xhd7w/exec",
+    "MOOTA_GAS_URL": "https://script.google.com/macros/s/AKfycbws7_zJ45J651PTrryxsoHrtgLdrJpeadt0HLa0AbHHg1zaKNX4jVoeyqU-lZwq9xhd7w/exec",
+    "MOOTA_TOKEN": "TOKEN MOOTA"
+  }
+}

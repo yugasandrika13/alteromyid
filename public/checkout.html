@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://script.google.com">
+    <script src="site.config.js"></script>
+    <script src="config.js?v=2026_1"></script>
+
+    <script>
+        (function() {
+            const CACHE_KEY = 'cepat_global_settings';
+            const CACHE_AGE = 60 * 60 * 1000; 
+
+            function syncGlobalSettingsCache(data, timestamp, version) {
+                if (!data) return;
+                const payload = { data: data, time: Number(timestamp || Date.now()), version: String(version || '') };
+                try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch (e) {}
+                if (window.__CEPAT_GLOBAL_SETTINGS__) {
+                    window.__CEPAT_GLOBAL_SETTINGS__.cached = payload;
+                    window.__CEPAT_GLOBAL_SETTINGS__.isFresh = true;
+                    window.__CEPAT_GLOBAL_SETTINGS__.version = payload.version;
+                }
+                applyGlobalSettings(data);
+            }
+
+            window.setMeta = (attrName, attrValue, content) => {
+                if(!content) return;
+                let element = document.querySelector(`meta[${attrName}="${attrValue}"]`);
+                if (!element) {
+                    element = document.createElement('meta');
+                    element.setAttribute(attrName, attrValue);
+                    document.head.appendChild(element);
+                }
+                element.setAttribute('content', content);
+            };
+
+            function applyGlobalSettings(data) {
+                if(data.site_favicon) {
+                    let link = document.querySelector("link[rel~='icon']");
+                    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+                    link.href = data.site_favicon;
+                }
+                
+                if(data.site_name) {
+                    if(!window.hasProductTitle) {
+                        document.title = document.title.replace(/Cepat Digital/gi, data.site_name).replace(/Cepat/gi, data.site_name);
+                        window.setMeta('property', 'og:title', data.site_name);
+                        window.setMeta('name', 'title', data.site_name);
+                    }
+                }
+
+                if(data.site_tagline && !window.hasProductDesc) {
+                    window.setMeta('property', 'og:description', data.site_tagline);
+                    window.setMeta('name', 'description', data.site_tagline);
+                }
+
+                if(data.site_logo && !window.hasProductImage) {
+                    window.setMeta('property', 'og:image', data.site_logo);
+                    window.setMeta('name', 'image', data.site_logo);
+                }
+
+                const updateDom = () => {
+                    if(data.site_name) {
+                        document.querySelectorAll('.dyn-site-name').forEach(el => {
+                            el.innerText = data.site_name;
+                        });
+                    }
+                };
+                
+                if(document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', updateDom); } else { updateDom(); }
+            }
+
+            const cachedStr = localStorage.getItem(CACHE_KEY);
+            let cached = null;
+            try { cached = JSON.parse(cachedStr); } catch(e){}
+            const now = Date.now();
+
+            if (cached && cached.data) { applyGlobalSettings(cached.data); }
+
+            window.__CEPAT_GLOBAL_SETTINGS__ = {
+                key: CACHE_KEY,
+                maxAge: CACHE_AGE,
+                cached: cached,
+                isFresh: !!(cached && cached.time && (now - cached.time <= CACHE_AGE)),
+                version: String((cached && cached.version) || ''),
+                apply: applyGlobalSettings,
+                sync: syncGlobalSettingsCache
+            };
+        })();
+    </script>
+    
+    <title>Checkout Premium - Cepat Digital</title>
+    <link rel="preload" as="style" href="tailwind.css?v=2026_1">
+    <link rel="stylesheet" href="tailwind.css?v=2026_1">
+    <script defer src="assets/vendor/lucide.min.js?v=0.577.0"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+
+        /* ===== ANIMATIONS ===== */
+        .fade-in { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in-up { animation: fadeIn 0.4s ease-out forwards; }
+
+        /* ===== STEP PROGRESS BAR ===== */
+        .step-indicator { display: flex; align-items: center; gap: 0; }
+        .step-dot {
+            width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 800; transition: all 0.2s ease;
+            background: #f1f5f9; color: #94a3b8; border: 2px solid #e2e8f0; flex-shrink: 0; position: relative;
+        }
+        .step-dot.active { background: #4f46e5; color: #fff; border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79,70,229,0.15); }
+        .step-dot.done { background: #10b981; color: #fff; border-color: #10b981; }
+        .step-line {
+            flex: 1; height: 2px; background: #e2e8f0; transition: background 0.3s ease; margin: 0 4px;
+        }
+        .step-line.done { background: #10b981; }
+        .step-label {
+            font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;
+            margin-top: 6px; text-align: center; transition: color 0.2s ease; white-space: nowrap;
+        }
+        .step-label.active { color: #4f46e5; }
+        .step-label.done { color: #10b981; }
+
+        /* ===== FORM VALIDATION STATES ===== */
+        .input-wrapper { position: relative; }
+        .validation-icon {
+            position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+            width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.15s ease, transform 0.15s ease; transform: translateY(-50%) scale(0.8);
+        }
+        .validation-icon.show { opacity: 1; transform: translateY(-50%) scale(1); }
+        .validation-icon.valid { background: #dcfce7; color: #16a34a; }
+        .validation-icon.invalid { background: #fee2e2; color: #dc2626; }
+        .validation-msg {
+            font-size: 11px; font-weight: 600; margin-top: 4px; margin-left: 2px;
+            height: 0; overflow: hidden; opacity: 0; transition: all 0.15s ease;
+        }
+        .validation-msg.show { height: auto; opacity: 1; padding-top: 2px; }
+        .validation-msg.error { color: #dc2626; }
+        .validation-msg.success { color: #16a34a; }
+
+        /* ===== INPUT MICRO-INTERACTIONS ===== */
+        .form-input {
+            transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .form-input:focus { box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+        .form-input.input-valid { border-color: #22c55e !important; }
+        .form-input.input-valid:focus { box-shadow: 0 0 0 3px rgba(34,197,94,0.1); }
+        .form-input.input-invalid { border-color: #ef4444 !important; }
+        .form-input.input-invalid:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+
+        /* ===== BUTTON MICRO-INTERACTIONS ===== */
+        .btn-primary {
+            transition: all 0.15s ease;
+        }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 25px -5px rgba(79,70,229,0.35); }
+        .btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.99); }
+
+        /* ===== NUMBER INPUT ===== */
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* ===== LOADING ===== */
+        .ping-slow { animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+        /* ===== SUCCESS CHECKMARK ANIMATION ===== */
+        @keyframes checkDraw {
+            0% { stroke-dashoffset: 50; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .check-anim { stroke-dasharray: 50; stroke-dashoffset: 50; animation: checkDraw 0.5s ease 0.2s forwards; }
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            60% { transform: scale(1.15); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .scale-in { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        /* ===== TOAST ===== */
+        #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 12px; pointer-events: none; }
+        .toast { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-radius: 16px; font-size: 13px; font-weight: 700; color: white; opacity: 0; transform: translateY(20px) scale(0.95); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); max-width: 380px; line-height: 1.5; pointer-events: auto; backdrop-filter: blur(12px); }
+        .toast.show { opacity: 1; transform: translateY(0) scale(1); }
+        .toast.success { background: rgba(16, 185, 129, 0.9); border: 1px solid rgba(255,255,255,0.15); }
+        .toast.error { background: rgba(239, 68, 68, 0.9); border: 1px solid rgba(255,255,255,0.15); }
+        .toast.warning { background: rgba(245, 158, 11, 0.9); border: 1px solid rgba(255,255,255,0.15); }
+
+        /* ===== COPY BUTTON FEEDBACK ===== */
+        .copy-flash { animation: copyFlash 0.3s ease; }
+        @keyframes copyFlash { 0%,100% { background: #eef2ff; } 50% { background: #c7d2fe; } }
+    </style>
+    <!-- Meta Pixel Code Helper -->
+    <script>
+        window._pixelId = null;
+        function initPixel(id) {
+            if(!id || window._pixelId) return;
+            window._pixelId = id;
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', id);
+            fbq('track', 'PageView');
+        }
+    </script>
+</head>
+<body class="bg-white text-slate-900 min-h-screen">
+
+    <div id="toast-container"></div>
+
+    <!-- ===== LOADING OVERLAY ===== -->
+    <div id="loading-state" class="fixed inset-0 bg-slate-900 z-[100] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-300">
+        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-900 to-slate-900"></div>
+        <div class="relative flex flex-col items-center z-10">
+            <div class="relative w-20 h-20 mb-8 flex items-center justify-center">
+                <div class="absolute inset-0 bg-indigo-500 rounded-full opacity-20 ping-slow"></div>
+                <div class="absolute inset-2 bg-indigo-600 rounded-full opacity-30 animate-ping"></div>
+                <div class="relative bg-indigo-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(79,70,229,0.5)]">
+                    <i data-lucide="shield-check" class="w-7 h-7"></i>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-indigo-400 font-bold text-[11px] tracking-[0.25em] uppercase">
+                <i data-lucide="lock" class="w-3 h-3"></i>
+                <span class="animate-pulse">Mengamankan Transaksi...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main id="main-content" class="hidden flex-col lg:flex-row min-h-screen">
+        
+        <!-- LEFT: Order Summary -->
+        <div class="lg:w-5/12 bg-slate-900 text-white p-8 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden lg:sticky lg:top-0 lg:h-screen">
+            <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-900/30 to-transparent pointer-events-none"></div>
+            <div class="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-600/15 blur-[100px] rounded-full pointer-events-none"></div>
+
+            <div class="relative z-10">
+                <a href="javascript:history.back()" class="inline-flex items-center gap-2 text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-widest mb-10 transition-colors group">
+                    <i data-lucide="arrow-left" class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform"></i> Kembali
+                </a>
+
+                <div class="mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest text-indigo-300">
+                    <i data-lucide="shopping-cart" class="w-3 h-3"></i> Ringkasan Pesanan
+                </div>
+                
+                <h1 id="display-title" class="text-2xl lg:text-3xl font-extrabold tracking-tight leading-snug mb-8 text-white">
+                    <span class="animate-pulse bg-white/10 h-7 w-3/4 rounded inline-block"></span>
+                </h1>
+
+                <div class="py-6 border-y border-white/10 mb-8">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">Total Biaya</p>
+                    <div id="display-total-top" class="text-3xl lg:text-4xl font-extrabold tracking-tighter text-white">
+                        <span class="animate-pulse bg-white/10 h-9 w-44 rounded inline-block"></span>
+                    </div>
+                </div>
+
+                <ul class="space-y-4 text-sm font-medium text-slate-300">
+                    <li class="flex items-center gap-3"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i> Lisensi Original 100%</li>
+                    <li class="flex items-center gap-3"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i> Akses Member Area Lifetime</li>
+                    <li class="flex items-center gap-3"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i> Verifikasi Pembayaran Cepat</li>
+                </ul>
+            </div>
+
+            <div class="relative z-10 mt-12 pt-6 border-t border-white/10">
+                <div class="flex items-center gap-3 opacity-50">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                    <p class="text-[10px] font-bold uppercase tracking-widest">Transaksi Dilindungi Enkripsi 256-bit</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Checkout Form -->
+        <div class="lg:w-7/12 bg-white p-8 md:p-12 lg:px-20 lg:py-16 flex flex-col justify-center relative">
+            <div class="max-w-lg w-full mx-auto">
+
+                <!-- STEP INDICATOR -->
+                <div class="mb-10">
+                    <div class="step-indicator">
+                        <div class="flex flex-col items-center">
+                            <div class="step-dot active" id="step-dot-1">1</div>
+                            <span class="step-label active" id="step-label-1">Data</span>
+                        </div>
+                        <div class="step-line" id="step-line-1"></div>
+                        <div class="flex flex-col items-center">
+                            <div class="step-dot" id="step-dot-2">2</div>
+                            <span class="step-label" id="step-label-2">Bayar</span>
+                        </div>
+                        <div class="step-line" id="step-line-2"></div>
+                        <div class="flex flex-col items-center">
+                            <div class="step-dot" id="step-dot-3">3</div>
+                            <span class="step-label" id="step-label-3">Selesai</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHECKOUT FORM SECTION -->
+                <div id="checkout-form-section" class="fade-in">
+                    <h2 class="text-xl font-extrabold text-slate-900 mb-1 tracking-tight">Data Penerima</h2>
+                    <p class="text-slate-500 text-sm mb-8">Akses produk dikirim ke email yang Anda daftarkan.</p>
+
+                    <form id="form-checkout" class="space-y-5" novalidate>
+                        <input type="hidden" id="prod-id"><input type="hidden" id="prod-title"><input type="hidden" id="prod-price">
+                        
+                        <!-- NAMA -->
+                        <div>
+                            <label for="cust-name" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-0.5">Nama Lengkap</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="user" class="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400 transition-colors z-10 pointer-events-none" id="icon-name"></i>
+                                <input type="text" id="cust-name" name="nama" autocomplete="name" class="form-input w-full bg-slate-50 border-2 border-slate-200 focus:bg-white focus:border-indigo-500 rounded-xl py-3.5 pl-11 pr-12 font-semibold text-slate-800 outline-none placeholder:text-slate-400 placeholder:font-medium text-sm" placeholder="Nama lengkap Anda" required minlength="3">
+                                <div class="validation-icon" id="vi-name"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path class="check-stroke" d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                            </div>
+                            <div class="validation-msg" id="vm-name"></div>
+                        </div>
+
+                        <!-- EMAIL -->
+                        <div>
+                            <label for="cust-email" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-0.5">Alamat Email</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="mail" class="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400 transition-colors z-10 pointer-events-none" id="icon-email"></i>
+                                <input type="email" id="cust-email" name="email" autocomplete="email" class="form-input w-full bg-slate-50 border-2 border-slate-200 focus:bg-white focus:border-indigo-500 rounded-xl py-3.5 pl-11 pr-12 font-semibold text-slate-800 outline-none placeholder:text-slate-400 placeholder:font-medium text-sm" placeholder="email@aktif.com" required>
+                                <div class="validation-icon" id="vi-email"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path class="check-stroke" d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                            </div>
+                            <div class="validation-msg" id="vm-email"></div>
+                        </div>
+
+                        <!-- WHATSAPP -->
+                        <div>
+                            <label for="cust-wa" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-0.5">Nomor WhatsApp</label>
+                            <div class="input-wrapper">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-slate-400 border-r-2 border-slate-200 pr-3 transition-colors z-10 pointer-events-none" id="wa-prefix">+62</span>
+                                <input type="tel" id="cust-wa" name="whatsapp" autocomplete="tel" class="form-input w-full bg-slate-50 border-2 border-slate-200 focus:bg-white focus:border-indigo-500 rounded-xl py-3.5 pl-[72px] pr-12 font-semibold text-slate-800 outline-none placeholder:text-slate-400 placeholder:font-medium text-sm" placeholder="81234567890" required pattern="[0-9]*" inputmode="numeric" minlength="9">
+                                <div class="validation-icon" id="vi-wa"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path class="check-stroke" d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                            </div>
+                            <div class="validation-msg" id="vm-wa"></div>
+                            <p class="text-[11px] text-slate-400 mt-1.5 ml-0.5 font-medium">Contoh: 81234567890 (tanpa angka 0 di depan)</p>
+                        </div>
+
+                        <!-- PAYMENT METHOD SECTION -->
+                        <div id="payment-method-section" class="hidden animate-fade-in-up pt-2">
+                            <div class="h-px bg-slate-100 mb-6"></div>
+                            <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-3 ml-0.5">Metode Pembayaran</label>
+                            <div class="grid grid-cols-1 gap-3">
+                                <label class="group relative flex items-start p-4 border-2 rounded-xl cursor-pointer transition-all duration-150 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/50 has-[:checked]:shadow-sm" id="opt-bank">
+                                    <input type="radio" name="payment_method" value="bank" class="peer sr-only" checked onchange="selectPayment('bank')">
+                                    <div class="flex-shrink-0 mt-0.5 mr-3">
+                                        <div class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center peer-checked:border-indigo-600 peer-checked:bg-indigo-600 transition-all duration-150">
+                                            <div class="w-2 h-2 rounded-full bg-transparent peer-checked:bg-white transition-colors"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="flex justify-between items-center mb-0.5">
+                                            <span class="block text-sm font-bold text-slate-800">Transfer Bank (Manual)</span>
+                                            <i data-lucide="landmark" class="w-4 h-4 text-indigo-400"></i>
+                                        </div>
+                                        <span class="block text-[11px] text-slate-500 font-medium leading-relaxed">Verifikasi manual via WhatsApp Admin.</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- SUBMIT BUTTON -->
+                        <div class="pt-2">
+                            <button type="submit" id="btn-submit" class="btn-primary w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-4 px-6 font-bold uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-3 group disabled:opacity-60 disabled:cursor-not-allowed">
+                                Proses Pemesanan <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-0.5 transition-transform"></i>
+                            </button>
+                        </div>
+
+                        <!-- AFFILIATE BADGE -->
+                        <div id="affiliate-badge" class="hidden mt-2 items-center justify-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 py-2 rounded-lg border border-slate-100">
+                            <i data-lucide="award" class="w-3 h-3 text-indigo-400"></i> Direkomendasikan oleh: <span id="affiliate-id-display" class="text-indigo-600">...</span>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- SUCCESS STATE -->
+                <div id="success-state" class="hidden fade-in">
+                    <div class="text-center mb-8">
+                        <!-- Animated Checkmark -->
+                        <div class="w-16 h-16 mx-auto mb-5 scale-in">
+                            <svg viewBox="0 0 64 64" fill="none">
+                                <circle cx="32" cy="32" r="30" stroke="#e0e7ff" stroke-width="3"/>
+                                <circle cx="32" cy="32" r="30" stroke="#4f46e5" stroke-width="3" stroke-dasharray="190" stroke-dashoffset="0" style="animation: none"/>
+                                <path class="check-anim" d="M20 33L28 41L44 23" stroke="#4f46e5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight mb-1.5">Pesanan Berhasil</h2>
+                        <p class="text-slate-500 text-sm font-medium">Selesaikan pembayaran untuk mengaktifkan akses.</p>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 mb-6 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-black uppercase tracking-widest px-4 py-1 rounded-bl-xl shadow-md">Wajib Tepat</div>
+                        <div class="flex justify-between items-start border-b border-slate-200 pb-5">
+                            <div>
+                                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Invoice</p>
+                                <p id="res-inv" class="font-bold text-slate-800">#INV-...</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Transfer</p>
+                                <p id="res-total" class="font-extrabold text-indigo-600 text-2xl tracking-tighter">Rp 0</p>
+                                <p class="text-[10px] text-red-500 font-bold mt-1 max-w-[130px] leading-tight">Transfer hingga 3 digit terakhir</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Transfer Ke:</p>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+                                <div>
+                                    <p id="res-bank-name" class="font-bold text-slate-900 uppercase text-sm">...</p>
+                                    <h4 id="res-bank-norek" class="text-xl font-mono font-bold text-slate-800 tracking-wider my-1">...</h4>
+                                    <p id="res-bank-owner" class="text-[10px] font-bold text-slate-500 uppercase">...</p>
+                                </div>
+                                <button onclick="copyRek()" id="btn-copy-rek" class="text-indigo-600 bg-indigo-50 px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all duration-150 flex items-center gap-1.5">
+                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="new-user-info" class="bg-indigo-50 border border-indigo-100 rounded-xl p-5 mb-6 hidden flex gap-4 items-start">
+                        <i data-lucide="key" class="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Akun Member Dibuat</p>
+                            <p class="text-sm text-slate-700 font-medium">Password Anda: <span id="temp-pass" class="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-indigo-200 ml-1 select-all"></span></p>
+                        </div>
+                    </div>
+
+                    <a href="#" id="wa-btn" target="_blank" class="btn-primary w-full bg-[#25D366] text-white rounded-xl py-4 px-6 font-bold uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 hover:bg-[#20bd5a]">
+                        <i data-lucide="message-circle" class="w-5 h-5"></i> Konfirmasi ke <span class="dyn-site-name inline">Admin</span>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        (function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const ref = urlParams.get('ref');
+            if(ref) { localStorage.setItem('cepat_affiliate', ref); }
+        })();
+    </script>
+
+    <script>
+        // === TOAST NOTIFICATION ===
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            let icon = 'check-circle';
+            if (type === 'error') icon = 'x-circle';
+            if (type === 'warning') icon = 'alert-triangle';
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 flex-shrink-0"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons({ root: toast });
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        let sysPayment = {};
+        let selectedPayment = 'bank';
+        const urlParams = new URLSearchParams(window.location.search);
+        const productId = urlParams.get('id');
+        
+        const ref = urlParams.get('ref') || urlParams.get('aff_id');
+        if(ref) { localStorage.setItem('cepat_affiliate', ref); }
+
+        const PRODUCT_CACHE_KEY = 'cepat_product_' + productId;
+        const PRODUCT_CACHE_AGE = 5 * 60 * 1000;
+
+        function selectPayment(method) { selectedPayment = method; }
+
+        // === STEP INDICATOR LOGIC ===
+        function setStep(step) {
+            for(let i = 1; i <= 3; i++) {
+                const dot = document.getElementById('step-dot-' + i);
+                const label = document.getElementById('step-label-' + i);
+                dot.classList.remove('active', 'done');
+                label.classList.remove('active', 'done');
+                if(i < step) {
+                    dot.classList.add('done');
+                    dot.innerHTML = '<svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                    label.classList.add('done');
+                } else if(i === step) {
+                    dot.classList.add('active');
+                    dot.innerHTML = i;
+                    label.classList.add('active');
+                } else {
+                    dot.innerHTML = i;
+                }
+            }
+            // Lines
+            document.getElementById('step-line-1').classList.toggle('done', step > 1);
+            document.getElementById('step-line-2').classList.toggle('done', step > 2);
+        }
+
+        // === REAL-TIME VALIDATION ===
+        const validators = {
+            'cust-name': {
+                validate: v => v.trim().length >= 3,
+                errorMsg: 'Nama minimal 3 karakter',
+                successMsg: 'Nama valid'
+            },
+            'cust-email': {
+                validate: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+                errorMsg: 'Format email tidak valid',
+                successMsg: 'Email valid'
+            },
+            'cust-wa': {
+                validate: v => v.replace(/\D/g,'').length >= 9,
+                errorMsg: 'Nomor minimal 9 digit',
+                successMsg: 'Nomor valid'
+            }
+        };
+
+        function validateField(id) {
+            const input = document.getElementById(id);
+            const val = input.value;
+            const v = validators[id];
+            const icon = document.getElementById('vi-' + id.split('-')[1]);
+            const msg = document.getElementById('vm-' + id.split('-')[1]);
+
+            if(!val || val.length === 0) {
+                icon.classList.remove('show', 'valid', 'invalid');
+                msg.classList.remove('show', 'error', 'success');
+                msg.textContent = '';
+                input.classList.remove('input-valid', 'input-invalid');
+                return null;
+            }
+
+            const isValid = v.validate(val);
+            
+            icon.classList.add('show');
+            icon.classList.toggle('valid', isValid);
+            icon.classList.toggle('invalid', !isValid);
+            
+            msg.classList.add('show');
+            msg.classList.toggle('error', !isValid);
+            msg.classList.toggle('success', isValid);
+            msg.textContent = isValid ? v.successMsg : v.errorMsg;
+
+            input.classList.toggle('input-valid', isValid);
+            input.classList.toggle('input-invalid', !isValid);
+
+            return isValid;
+        }
+
+        function isFormValid() {
+            let allValid = true;
+            for(const id of Object.keys(validators)) {
+                const result = validateField(id);
+                if(result !== true) allValid = false;
+            }
+            return allValid;
+        }
+
+        // Attach real-time validation listeners
+        Object.keys(validators).forEach(id => {
+            const input = document.getElementById(id);
+            input.addEventListener('input', () => validateField(id));
+            input.addEventListener('blur', () => validateField(id));
+        });
+
+        // WA: strip non-number on input
+        document.getElementById('cust-wa').addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        // Focus state: tint icons
+        ['cust-name', 'cust-email'].forEach(id => {
+            const input = document.getElementById(id);
+            const iconId = id === 'cust-name' ? 'icon-name' : 'icon-email';
+            const icon = document.getElementById(iconId);
+            input.addEventListener('focus', () => icon.classList.replace('text-slate-400', 'text-indigo-500'));
+            input.addEventListener('blur', () => icon.classList.replace('text-indigo-500', 'text-slate-400'));
+        });
+
+        document.getElementById('cust-wa').addEventListener('focus', () => {
+            document.getElementById('wa-prefix').classList.replace('text-slate-400', 'text-indigo-500');
+            document.getElementById('wa-prefix').classList.replace('border-slate-200', 'border-indigo-200');
+        });
+        document.getElementById('cust-wa').addEventListener('blur', () => {
+            document.getElementById('wa-prefix').classList.replace('text-indigo-500', 'text-slate-400');
+            document.getElementById('wa-prefix').classList.replace('border-indigo-200', 'border-slate-200');
+        });
+
+        // === RENDER CHECKOUT ===
+        function renderCheckoutUI(r) {
+            const p = r.data; sysPayment = r.payment;
+            
+            try {
+                let pxId = sysPayment.pixel_id;
+                if(!pxId) {
+                    const g = JSON.parse(localStorage.getItem('cepat_global_settings') || '{}');
+                    if(g.data && g.data.pixel_id) pxId = g.data.pixel_id;
+                }
+                if(pxId) {
+                    initPixel(pxId);
+                    setTimeout(() => {
+                        fbq('track', 'AddToCart', { 
+                            content_name: p.title, content_ids: [p.id], content_type: 'product',
+                            value: p.harga, currency: 'IDR' 
+                        });
+                    }, 500);
+                }
+            } catch(e) {}
+
+            selectedPayment = 'bank';
+            document.querySelector('input[value="bank"]').checked = true;
+
+            if(r.aff_name && r.aff_name !== "") {
+                document.getElementById('affiliate-id-display').innerText = r.aff_name;
+                document.getElementById('affiliate-badge').classList.remove('hidden');
+                document.getElementById('affiliate-badge').classList.add('flex');
+            }
+            
+            document.getElementById('display-title').innerText = p.title;
+            document.getElementById('display-total-top').innerText = 'Rp ' + Number(p.harga).toLocaleString('id-ID');
+            document.getElementById('prod-id').value = p.id;
+            document.getElementById('prod-title').value = p.title;
+            document.getElementById('prod-price').value = p.harga;
+            
+            if(window.setMeta) {
+                document.title = p.title; 
+                window.setMeta('property', 'og:title', p.title);
+                window.setMeta('name', 'title', p.title);
+                window.hasProductTitle = true;
+
+                if(p.desc) {
+                    const cleanDesc = p.desc.replace(/<[^>]*>?/gm, '').substring(0, 160);
+                    window.setMeta('property', 'og:description', cleanDesc);
+                    window.setMeta('name', 'description', cleanDesc);
+                    window.hasProductDesc = true;
+                }
+
+                const pImage = p.image_url || p.image || p.thumbnail;
+                if(pImage) {
+                    window.setMeta('property', 'og:image', pImage);
+                    window.setMeta('name', 'image', pImage);
+                    window.hasProductImage = true;
+                }
+            }
+            
+            const isFree = (Number(p.harga) === 0);
+            if (isFree) {
+                document.getElementById('payment-method-section').classList.add('hidden');
+                document.getElementById('btn-submit').innerHTML = 'Dapatkan Akses Gratis <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-0.5 transition-transform"></i>';
+                document.getElementById('display-total-top').innerText = 'GRATIS';
+                document.getElementById('display-total-top').classList.add('text-emerald-400');
+            } else {
+                document.getElementById('display-total-top').classList.remove('text-emerald-400');
+            }
+            
+            const loader = document.getElementById('loading-state');
+            if(loader.style.display !== 'none') {
+                loader.classList.add('opacity-0');
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                    document.getElementById('main-content').classList.remove('hidden');
+                    document.getElementById('main-content').classList.add('flex');
+                }, 300);
+            }
+            
+            setStep(1);
+            lucide.createIcons();
+        }
+
+        async function loadProduct() {
+            if(!productId) { window.location.href = 'index.html'; return; }
+            
+            const affId = localStorage.getItem('cepat_affiliate');
+            const cachedDataRaw = localStorage.getItem(PRODUCT_CACHE_KEY);
+            const globalCache = window.__CEPAT_GLOBAL_SETTINGS__ || {};
+            let cachedData = null;
+            let cachedAt = 0;
+            let cachedProductVersion = '';
+            try {
+                const parsed = cachedDataRaw ? JSON.parse(cachedDataRaw) : null;
+                if (parsed && typeof parsed === 'object' && parsed.data) {
+                    cachedData = parsed.data;
+                    cachedAt = Number(parsed.time || 0);
+                    cachedProductVersion = String(parsed.version || '');
+                } else if (parsed && typeof parsed === 'object') {
+                    cachedData = parsed;
+                }
+            } catch (e) { cachedData = null; }
+            let prefilled = false;
+
+            if (cachedData) {
+                renderCheckoutUI(cachedData);
+                prefilled = true;
+            } else {
+                try {
+                    const pubCat = JSON.parse(localStorage.getItem('cepat_public_catalog') || '[]');
+                    const p = pubCat.find(x => x.id === productId);
+                    if(p) {
+                        document.getElementById('display-title').innerText = p.title;
+                        document.getElementById('display-total-top').innerText = 'Rp ' + Number(p.harga).toLocaleString('id-ID');
+                        document.getElementById('prod-id').value = p.id;
+                        document.getElementById('prod-title').value = p.title;
+                        document.getElementById('prod-price').value = p.harga;
+
+                        const loader = document.getElementById('loading-state');
+                        loader.classList.add('opacity-0');
+                        setTimeout(() => {
+                            loader.style.display = 'none';
+                            document.getElementById('main-content').classList.remove('hidden');
+                            document.getElementById('main-content').classList.add('flex');
+                        }, 200);
+                        prefilled = true;
+                    }
+                } catch(e) {}
+            }
+
+            try {
+                const targetUrl = window.SCRIPT_URL || (typeof SCRIPT_URL !== 'undefined' ? SCRIPT_URL : null);
+                if(!targetUrl) { showToast('Sistem belum terhubung dengan server.', 'error'); return; }
+                const cacheState = (window.CEPAT_CACHE_STATE && typeof window.CEPAT_CACHE_STATE.ensureFresh === 'function')
+                    ? await window.CEPAT_CACHE_STATE.ensureFresh()
+                    : null;
+                const currentProductVersion = String((cacheState && cacheState.catalog) || '');
+                const currentSettingsVersion = String((cacheState && cacheState.settings) || '');
+                const cachedSettingsVersion = String((globalCache.cached && globalCache.cached.version) || '');
+                const isProductStale = !cachedAt || ((Date.now() - cachedAt) > PRODUCT_CACHE_AGE);
+                const isProductVersionStale = !!currentProductVersion && cachedProductVersion !== currentProductVersion;
+                const isSettingsVersionStale = !!currentSettingsVersion && cachedSettingsVersion !== currentSettingsVersion;
+                const isSettingsStale = !globalCache.isFresh || isSettingsVersionStale;
+                if (cachedData && !isProductStale && !isSettingsStale && !isProductVersionStale) return;
+
+                const requests = [];
+                const requestMap = {};
+                if (isSettingsStale) {
+                    requestMap.settings = requests.push({ action: 'get_global_settings', cache_version: currentSettingsVersion }) - 1;
+                }
+                if (!cachedData || isProductStale || isProductVersionStale) {
+                    requestMap.product = requests.push({ action: 'get_product', id: productId, aff_id: affId, cache_version: currentProductVersion }) - 1;
+                }
+                if (!requests.length) return;
+
+                const batch = (window.CEPAT_API && typeof window.CEPAT_API.batch === 'function')
+                    ? await window.CEPAT_API.batch(requests)
+                    : { status: 'error', results: [] };
+                const results = Array.isArray(batch.results) ? batch.results : [];
+
+                if (requestMap.settings !== undefined) {
+                    const settingsResult = results[requestMap.settings];
+                    if (settingsResult && settingsResult.data && settingsResult.data.status === 'success') {
+                        const settingsData = settingsResult.data.data;
+                        const nextSettingsVersion = String((settingsResult.data && settingsResult.data.cache_version) || currentSettingsVersion || '');
+                        if (typeof globalCache.sync === 'function') globalCache.sync(settingsData, Date.now(), nextSettingsVersion);
+                        else if (typeof globalCache.apply === 'function') globalCache.apply(settingsData);
+                    }
+                }
+
+                if (requestMap.product !== undefined) {
+                    const productResult = results[requestMap.product];
+                    const r = productResult && productResult.data ? productResult.data : null;
+                    if(r && r.status === 'success') {
+                        const freshData = JSON.stringify(r);
+                        const previousData = cachedData ? JSON.stringify(cachedData) : '';
+                        const nextProductVersion = String((r && r.cache_version) || currentProductVersion || '');
+                        if(previousData !== freshData) {
+                            localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify({ data: r, time: Date.now(), version: nextProductVersion }));
+                            renderCheckoutUI(r); 
+                        } else if (!cachedData) {
+                            renderCheckoutUI(r); 
+                        } else {
+                            localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify({ data: cachedData, time: Date.now(), version: nextProductVersion || cachedProductVersion }));
+                        }
+                    } else { 
+                        if(!prefilled) { showToast((r && r.message) || 'Produk tidak ditemukan.', 'error'); setTimeout(() => window.location.href = 'index.html', 1500); }
+                    }
+                }
+            } catch (e) { 
+                showToast('Gagal memuat sistem pembayaran. Cek internet Anda.', 'error');
+            }
+        }
+
+        // === FORM SUBMIT ===
+        document.getElementById('form-checkout').onsubmit = async (e) => {
+            e.preventDefault();
+
+            // Real-time validation gate
+            if(!isFormValid()) {
+                showToast('Mohon lengkapi semua data dengan benar.', 'warning');
+                return;
+            }
+            
+            if(typeof fbq === 'function') {
+                fbq('track', 'InitiateCheckout', {
+                    content_ids: [document.getElementById('prod-id').value],
+                    content_type: 'product',
+                    value: document.getElementById('prod-price').value,
+                    currency: 'IDR'
+                });
+            }
+
+            const btn = document.getElementById('btn-submit'); 
+            const originalHTML = btn.innerHTML;
+
+            if (Object.keys(sysPayment).length === 0) {
+                btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> SINKRONISASI...';
+                showToast('Menyiapkan pembayaran. Klik ulang dalam 2 detik.', 'warning');
+                setTimeout(() => { btn.innerHTML = originalHTML; lucide.createIcons(); }, 2000);
+                return;
+            }
+
+            // Advance to step 2
+            setStep(2);
+
+            btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> MEMPROSES...'; 
+            btn.disabled = true; lucide.createIcons();
+
+            const pData = {
+                action: 'create_order',
+                nama: document.getElementById('cust-name').value,
+                email: document.getElementById('cust-email').value,
+                whatsapp: document.getElementById('cust-wa').value,
+                id_produk: document.getElementById('prod-id').value,
+                nama_produk: document.getElementById('prod-title').value,
+                harga: document.getElementById('prod-price').value,
+                affiliate: localStorage.getItem('cepat_affiliate') || "-" 
+            };
+
+            try {
+                const targetUrl = window.SCRIPT_URL || SCRIPT_URL;
+                
+                const res = await fetch(targetUrl, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(pData) 
+                });
+                const r = await res.json();
+
+                if(r.status === 'success') {
+                    // Advance to step 3
+                    setStep(3);
+
+                    window.scrollTo({top: 0, behavior: 'smooth'}); 
+                    
+                    document.getElementById('checkout-form-section').classList.add('hidden');
+                    document.getElementById('success-state').classList.remove('hidden');
+                    
+                    document.getElementById('res-inv').innerText = '#' + r.invoice;
+                    
+                    if (Number(r.tagihan) === 0) {
+                         document.querySelector('#success-state h2').innerText = "Akses Aktif! 🎉";
+                         document.querySelector('#success-state p').innerText = "Selamat! Produk telah berhasil ditambahkan ke akun Anda.";
+                         
+                         const bankBox = document.querySelector('#success-state > div.bg-slate-50');
+                         if(bankBox) {
+                             bankBox.innerHTML = `
+                                <div class="text-center py-8">
+                                    <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 scale-in">
+                                        <i data-lucide="unlock" class="w-10 h-10"></i>
+                                    </div>
+                                    <h3 class="text-2xl font-extrabold text-slate-800 mb-2 tracking-tight">Akses Terbuka</h3>
+                                    <p class="text-slate-500 text-sm font-medium mb-8 px-4">Silakan cek WhatsApp/Email Anda untuk detail login dan link akses materi.</p>
+                                    
+                                    <div class="flex flex-col gap-3 px-6">
+                                        <a href="login.html" class="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20">
+                                            <i data-lucide="log-in" class="w-4 h-4"></i> Login Member Area
+                                        </a>
+                                    </div>
+                                </div>
+                             `;
+                         }
+                         
+                         const waText = `Halo Admin! 👋\n\nSaya sudah klaim produk gratis:\n\n📦 *Produk:* ${pData.nama_produk}\n👤 *Nama:* ${pData.nama}\n\nTerima kasih!`;
+                         const waBtn = document.getElementById('wa-btn');
+                         if(waBtn) {
+                             waBtn.href = `https://wa.me/${sysPayment.wa_admin}?text=${encodeURIComponent(waText)}`;
+                             waBtn.innerHTML = '<i data-lucide="message-circle" class="w-5 h-5"></i> Chat Admin';
+                             waBtn.classList.remove('bg-[#25D366]');
+                             waBtn.classList.add('bg-slate-800', 'hover:bg-slate-700');
+                         }
+
+                    } else {
+                        document.getElementById('res-bank-name').innerText = sysPayment.bank_name;
+                        document.getElementById('res-bank-norek').innerText = sysPayment.bank_norek;
+                        document.getElementById('res-bank-owner').innerText = 'A.N ' + sysPayment.bank_owner;
+                        
+                        document.getElementById('res-total').innerText = 'Rp ' + Number(r.tagihan).toLocaleString('id-ID');
+
+                        const siteNameElements = document.querySelectorAll('.dyn-site-name');
+                        const dSiteName = siteNameElements.length > 0 ? siteNameElements[0].innerText : "Admin";
+                        const waText = `Halo ${dSiteName}! 👋\n\nSaya mau konfirmasi pesanan:\n\n📌 *Invoice:* #${r.invoice}\n🛒 *Produk:* ${pData.nama_produk}\n💰 *Total Bayar:* Rp ${Number(r.tagihan).toLocaleString('id-ID')}\n👤 *Atas Nama:* ${pData.nama}\n\nMohon dicek ya Min. Terima kasih!`;
+                        document.getElementById('wa-btn').href = `https://wa.me/${sysPayment.wa_admin}?text=${encodeURIComponent(waText)}`;
+                    }
+
+                    if(r.is_new_user) {
+                        document.getElementById('new-user-info').classList.remove('hidden');
+                        document.getElementById('temp-pass').innerText = r.password;
+                    }
+                    showToast('Pesanan berhasil dibuat!', 'success');
+                    lucide.createIcons();
+                } else { 
+                    setStep(1);
+                    showToast(r.message, 'error'); 
+                    btn.innerHTML = originalHTML; 
+                    btn.disabled = false; 
+                    lucide.createIcons();
+                }
+            } catch (err) { 
+                setStep(1);
+                showToast('Gagal memproses pesanan. Cek koneksi Anda.', 'error'); 
+                btn.innerHTML = originalHTML;
+                btn.disabled = false; 
+                lucide.createIcons();
+            }
+        };
+
+        // === COPY REKENING ===
+        function copyRek() {
+            if(!sysPayment.bank_norek) return;
+            navigator.clipboard.writeText(sysPayment.bank_norek).then(() => {
+                showToast("Nomor rekening tersalin!", "success");
+                const btn = document.getElementById('btn-copy-rek');
+                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> Tersalin!';
+                btn.classList.add('copy-flash', 'bg-emerald-50', '!text-emerald-600');
+                btn.classList.remove('bg-indigo-50', 'text-indigo-600');
+                lucide.createIcons({ root: btn });
+                setTimeout(() => {
+                    btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin';
+                    btn.classList.remove('copy-flash', 'bg-emerald-50', '!text-emerald-600');
+                    btn.classList.add('bg-indigo-50', 'text-indigo-600');
+                    lucide.createIcons({ root: btn });
+                }, 2000);
+            }).catch(() => { showToast("Gagal menyalin", "error"); });
+        }
+
+        // === INIT ===
+        window.onload = () => {
+            lucide.createIcons();
+            loadProduct();
+            
+            // AUTO-FILL IF LOGGED IN
+            try {
+                const userData = JSON.parse(sessionStorage.getItem('user_data'));
+                if(userData) {
+                    if(document.getElementById('cust-name')) document.getElementById('cust-name').value = userData.nama || '';
+                    if(document.getElementById('cust-email')) document.getElementById('cust-email').value = userData.email || '';
+                    if(document.getElementById('cust-wa') && userData.whatsapp) {
+                        let wa = userData.whatsapp.toString();
+                        if(wa.startsWith('62')) wa = wa.substring(2);
+                        document.getElementById('cust-wa').value = wa;
+                    }
+                }
+            } catch(e) {}
+        };
+    </script>
+</body>
+</html>

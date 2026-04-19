@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://script.google.com">
+    <script src="site.config.js"></script>
+    <script src="config.js?v=2026_1"></script>
+
+    <script>
+        (function() {
+            const CACHE_KEY = 'cepat_global_settings';
+            const CACHE_AGE = 60 * 60 * 1000; 
+            window.waAdminGlobal = '';
+
+            function syncGlobalSettingsCache(data, timestamp, version) {
+                if (!data) return;
+                const payload = { data: data, time: Number(timestamp || Date.now()), version: String(version || '') };
+                try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch (e) {}
+                if (window.__CEPAT_GLOBAL_SETTINGS__) {
+                    window.__CEPAT_GLOBAL_SETTINGS__.cached = payload;
+                    window.__CEPAT_GLOBAL_SETTINGS__.isFresh = true;
+                    window.__CEPAT_GLOBAL_SETTINGS__.version = payload.version;
+                }
+                window.applyGlobalSettings(data);
+            }
+
+            window.applyGlobalSettings = function(data) {
+                if(data.site_favicon) {
+                    let link = document.querySelector("link[rel~='icon']");
+                    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+                    link.href = data.site_favicon;
+                }
+                if(data.wa_admin) window.waAdminGlobal = data.wa_admin;
+                
+                if(data.site_name) {
+                    document.title = `Member Area - ${data.site_name}`;
+                }
+
+                const updateDomElements = () => {
+                    if(data.site_name) {
+                        document.querySelectorAll('.dyn-site-name').forEach(el => { el.innerText = data.site_name; });
+                        const logoImg = document.getElementById('dyn-site-logo');
+                        if(logoImg && logoImg.alt === '') logoImg.alt = data.site_name;
+                    }
+                    if(data.site_logo) {
+                        const img = document.getElementById('dyn-site-logo');
+                        if (img) {
+                            img.src = data.site_logo;
+                            img.classList.remove('hidden');
+                        }
+                        const fb = document.getElementById('logo-fallback');
+                        if (fb) fb.classList.add('hidden');
+                    }
+                };
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', updateDomElements);
+                } else {
+                    updateDomElements();
+                }
+            }
+
+            const cachedStr = localStorage.getItem(CACHE_KEY);
+            let cached = null;
+            try { cached = JSON.parse(cachedStr); } catch(e){}
+            const now = Date.now();
+
+            if (cached && cached.data) { applyGlobalSettings(cached.data); }
+
+            window.__CEPAT_GLOBAL_SETTINGS__ = {
+                key: CACHE_KEY,
+                maxAge: CACHE_AGE,
+                cached: cached,
+                isFresh: !!(cached && cached.time && (now - cached.time <= CACHE_AGE)),
+                version: String((cached && cached.version) || ''),
+                apply: window.applyGlobalSettings,
+                sync: syncGlobalSettingsCache
+            };
+
+            if (!cached || !cached.time || (now - cached.time > CACHE_AGE)) {
+                // Optimization: Skip separate fetch here. 
+                // loadDashboard() will fetch settings via get_dashboard_data and update this cache.
+                // This prevents double network requests on load.
+            }
+        })();
+    </script>
+    <title>Member Area</title>
+    <link rel="preload" as="style" href="tailwind.css?v=2026_1">
+    <link rel="stylesheet" href="tailwind.css?v=2026_1">
+    <script defer src="assets/vendor/lucide.min.js?v=0.577.0"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; background-color: #f8fafc; }
+        
+        /* Smooth Transitions */
+        .transition-all-300 { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Sidebar & Navigation */
+        .nav-item { transition: all 0.2s ease-in-out; color: #64748b; }
+        .nav-item:hover { background-color: #f1f5f9; color: #1e293b; }
+        .nav-item.active { background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: white; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }
+        
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Mobile Sidebar */
+        #sidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        @media (max-width: 768px) {
+            #sidebar { transform: translateX(-100%); position: fixed; z-index: 50; }
+            #sidebar.open { transform: translateX(0); }
+            #sidebar-overlay { display: none; }
+            #sidebar-overlay.open { display: block; }
+        }
+
+        /* Toast Notifications */
+        #toast-container { position: fixed; bottom: 32px; right: 32px; z-index: 9999; display: flex; flex-direction: column; gap: 12px; pointer-events: none; }
+        .toast { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-radius: 16px; font-size: 14px; font-weight: 600; color: white; opacity: 0; transform: translateY(20px); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); max-width: 400px; backdrop-filter: blur(8px); }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background-color: rgba(16, 185, 129, 0.95); }
+        .toast.error { background-color: rgba(239, 68, 68, 0.95); }
+        .toast.warning { background-color: rgba(245, 158, 11, 0.95); }
+
+        /* Skeleton Loading */
+        .skeleton { background: #e2e8f0; background: linear-gradient(110deg, #ececec 8%, #f5f5f5 18%, #ececec 33%); border-radius: 8px; background-size: 200% 100%; animation: 1.5s shine linear infinite; }
+        @keyframes shine { to { background-position-x: -200%; } }
+        .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .section-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 24px; box-shadow: 0 10px 20px -8px rgba(15,23,42,.05); padding: 24px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased relative h-screen w-screen overflow-hidden flex">
+
+    <div id="toast-container"></div>
+
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/40 z-40 md:hidden backdrop-blur-sm transition-opacity"></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="w-72 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 z-50 shadow-sm">
+        <div class="h-20 flex items-center px-8 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <img id="dyn-site-logo" src="" alt="" class="h-8 w-auto hidden select-none" loading="lazy">
+                <div id="logo-fallback" class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                </div>
+                <span class="font-bold text-xl text-slate-800 tracking-tight dyn-site-name">
+                    <span class="opacity-0">Loading...</span>
+                </span>
+            </div>
+            <button onclick="toggleSidebar()" class="md:hidden ml-auto text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+
+        <nav class="p-4 space-y-1 flex-1 overflow-y-auto custom-scroll">
+            <div class="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-2">Menu Utama</div>
+            <button onclick="switchSection('dashboard')" id="nav-dashboard" class="nav-item active w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm text-left transition-all">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Dashboard
+            </button>
+            <button onclick="switchSection('partner')" id="nav-partner" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm text-left transition-all">
+                <i data-lucide="users" class="w-5 h-5"></i> Partner Saya
+            </button>
+            <button onclick="switchSection('products')" id="nav-products" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm text-left transition-all">
+                <i data-lucide="shopping-bag" class="w-5 h-5"></i> Katalog Produk
+            </button>
+            <button onclick="switchSection('landing-pages')" id="nav-landing-pages" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm text-left transition-all">
+                <i data-lucide="layout" class="w-5 h-5"></i> Landing Page
+            </button>
+            <div class="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-6">Akun</div>
+            <button onclick="openProfileModal()" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm text-left hover:bg-slate-100 transition-colors text-slate-600">
+                <i data-lucide="user-cog" class="w-5 h-5"></i> Edit Profile
+            </button>
+            <button onclick="openPasswordModal()" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm text-left hover:bg-slate-100 transition-colors text-slate-600">
+                <i data-lucide="key-round" class="w-5 h-5"></i> Ganti Password
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-slate-100 bg-slate-50/50">
+            <button onclick="logout()" class="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 py-3 rounded-xl font-semibold text-xs transition-all">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Sign Out
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative bg-[#f8fafc]">
+        
+        <header class="sticky top-0 bg-white/80 backdrop-blur-md z-30 px-6 md:px-10 py-5 flex justify-between items-center border-b border-slate-200/50">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="md:hidden p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-600"><i data-lucide="menu" class="w-6 h-6"></i></button>
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Member Area</h2>
+                    <p class="text-xs text-slate-400 font-medium hidden sm:block">Welcome back, <span id="header-name" class="text-indigo-600 font-bold">User</span>!</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="hidden sm:block text-right mr-2">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status Member</p>
+                    <p class="text-xs font-bold text-emerald-600 flex items-center justify-end gap-1"><i data-lucide="check-circle" class="w-3 h-3"></i> Active</p>
+                </div>
+                <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold shadow-sm border border-indigo-100 overflow-hidden">
+                    <img id="header-avatar" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+                    <i id="header-avatar-icon" data-lucide="user" class="w-5 h-5"></i>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6 md:p-10 custom-scroll pb-24">
+            <div id="dashboard-content" class="fade-in-up space-y-10 max-w-7xl mx-auto">
+                
+                <!-- AFFILIATE BANNER -->
+                <section>
+                    <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-[2rem] p-8 md:p-10 text-white shadow-xl shadow-indigo-900/10 relative overflow-hidden border border-slate-800/50">
+                        <!-- Decorative Elements -->
+                        <div class="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                        <div class="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
+                        
+                        <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                            <div>
+                                <div class="flex items-center gap-2 mb-4">
+                                    <span class="bg-white/10 border border-white/10 text-indigo-100 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 backdrop-blur-md">
+                                        <i data-lucide="sparkles" class="w-3 h-3"></i> Program Partner
+                                    </span>
+                                </div>
+                                <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4 leading-tight">Sebarkan & <br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-emerald-300">Hasilkan Cuan!</span></h2>
+                                <p class="text-slate-400 text-sm mb-8 max-w-md leading-relaxed">Dapatkan komisi menarik dari setiap penjualan produk melalui link referensi unik Anda.</p>
+                                
+                                <div class="flex flex-col sm:flex-row gap-3">
+                                    <div class="flex-1 bg-slate-950/50 border border-white/10 px-5 py-3 rounded-xl flex items-center gap-3 backdrop-blur-sm group cursor-pointer hover:border-indigo-500/50 transition-all" onclick="copyAffLink()">
+                                        <i data-lucide="link" class="w-4 h-4 text-indigo-400 group-hover:text-white transition-colors"></i>
+                                        <code id="aff-link-display" class="text-xs font-mono text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis">Memuat link...</code>
+                                        <i data-lucide="copy" class="w-4 h-4 text-slate-500 ml-auto group-hover:text-white transition-colors"></i>
+                                    </div>
+                                    <button onclick="copyAffLink()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wide transition-all shadow-lg shadow-indigo-600/20 whitespace-nowrap hover:shadow-indigo-600/40">
+                                        Salin Link
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl relative overflow-hidden group">
+                                <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <div class="relative z-10">
+                                    <div class="flex justify-between items-start mb-6">
+                                        <div>
+                                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Komisi</p>
+                                            <div class="text-3xl font-bold tracking-tight text-emerald-400" id="display-saldo-komisi">
+                                                <div class="h-8 w-32 skeleton rounded bg-white/10"></div>
+                                            </div>
+                                        </div>
+                                        <div class="p-3 bg-emerald-500/20 rounded-2xl text-emerald-400 ring-1 ring-emerald-500/20">
+                                            <i data-lucide="wallet" class="w-6 h-6"></i>
+                                        </div>
+                                    </div>
+                                    <button onclick="requestWithdrawal()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-4 rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg hover:shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 group">
+                                        Ajukan Penarikan <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
+                                    </button>
+                                    <p class="text-center text-[10px] text-slate-500 mt-4">Minimal penarikan Rp 50.000 via WhatsApp Admin</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- OWNED MATERIALS -->
+                <section>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                                <i data-lucide="library" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800">Materi Saya</h2>
+                                <p class="text-xs text-slate-400 font-medium">Produk yang telah Anda beli (LUNAS)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-panel">
+                        <div id="list-owned" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            <!-- Skeleton -->
+                            <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm h-full flex flex-col">
+                                <div class="h-4 w-16 skeleton rounded-full mb-6"></div>
+                                <div class="h-6 w-3/4 skeleton rounded mb-4"></div>
+                                <div class="h-3 w-full skeleton rounded mb-2"></div>
+                                <div class="h-3 w-2/3 skeleton rounded mb-8"></div>
+                                <div class="mt-auto h-12 w-full skeleton rounded-xl"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+
+
+                <section>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-200">
+                                <i data-lucide="link-2" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800">Link Affiliate Landing Page</h2>
+                                <p class="text-xs text-slate-400 font-medium">Promosikan produk dan dapatkan komisi</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-panel bg-white/50 backdrop-blur-sm">
+                        <div id="list-affiliate-tools" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Affiliate Links will be rendered here -->
+                             <div class="col-span-full py-8 text-center">
+                                <div class="h-4 w-48 skeleton rounded mx-auto mb-2"></div>
+                                <div class="h-10 w-full max-w-md skeleton rounded-xl mx-auto"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+
+            </div>
+
+            <!-- PARTNER SECTION (Hidden by default) -->
+            <div id="section-partner" class="hidden fade-in-up space-y-10 max-w-7xl mx-auto">
+                <section>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                                <i data-lucide="users" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800">Partner Saya</h2>
+                                <p class="text-xs text-slate-400 font-medium">Daftar pengguna yang mendaftar melalui link affiliate Anda</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SPONSOR INFO -->
+                    <div id="sponsor-info-card" class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 mb-8 flex items-center gap-5 shadow-lg shadow-indigo-200/50 text-white hidden fade-in-up">
+                        <div class="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/30 shrink-0">
+                            <i data-lucide="user-check" class="w-7 h-7 text-white"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-indigo-100 uppercase tracking-widest mb-1">Sponsor / Upline Anda</p>
+                            <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                                <span id="display-upline-name">Loading...</span>
+                                <i data-lucide="badge-check" class="w-5 h-5 text-emerald-300"></i>
+                            </h3>
+                            <p class="text-xs text-indigo-100 mt-1">Transaksi Anda akan terhubung dengan sponsor ini.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="section-panel">
+                        <div class="overflow-x-auto custom-scroll">
+                            <table class="w-full text-left text-sm min-w-[600px]">
+                                <thead class="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-100">
+                                    <tr>
+                                        <th class="px-6 py-4 rounded-tl-xl">Tanggal</th>
+                                        <th class="px-6 py-4">Nama Partner</th>
+                                        <th class="px-6 py-4">Produk Dibeli</th>
+                                        <th class="px-6 py-4 text-center">Status</th>
+                                        <th class="px-6 py-4 text-right rounded-tr-xl">Komisi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="list-partners" class="divide-y divide-slate-100">
+                                    <tr>
+                                        <td colspan="5" class="px-6 py-8 text-center text-slate-400 text-xs">
+                                            <div class="flex flex-col items-center gap-2">
+                                                <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-500"></i>
+                                                <span>Memuat data partner...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- PRODUCT CATALOG SECTION -->
+            <div id="section-products" class="hidden fade-in-up space-y-10 max-w-7xl mx-auto">
+                <section>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white border border-slate-200 text-slate-600 rounded-xl flex items-center justify-center shadow-sm">
+                                <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800">Katalog Produk</h2>
+                                <p class="text-xs text-slate-400 font-medium">Jelajahi produk lainnya</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-panel">
+                        <div id="list-available" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm h-full flex flex-col">
+                                <div class="h-4 w-20 skeleton rounded-full mb-6"></div>
+                                <div class="h-6 w-3/4 skeleton rounded mb-4"></div>
+                                <div class="h-3 w-full skeleton rounded mb-2"></div>
+                                <div class="h-3 w-2/3 skeleton rounded mb-8"></div>
+                                <div class="h-5 w-1/3 skeleton rounded mb-6"></div>
+                                <div class="mt-auto h-12 w-full skeleton rounded-xl"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- MY LANDING PAGES SECTION -->
+            <div id="section-landing-pages" class="hidden fade-in-up space-y-10 max-w-7xl mx-auto">
+                <section>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                                <i data-lucide="layout" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800">Halaman Landing Page Saya</h2>
+                                <p class="text-xs text-slate-400 font-medium">Buat dan kelola landing page promosi Anda sendiri</p>
+                            </div>
+                        </div>
+                        <button onclick="loadMyPages()" class="text-slate-400 hover:text-indigo-600 p-2 rounded-lg transition-colors" title="Refresh Halaman">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="openPageModal()" class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all text-xs uppercase tracking-wide">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Buat Halaman
+                        </button>
+                    </div>
+                    <div class="section-panel">
+                        <div class="overflow-x-auto custom-scroll">
+                            <table class="w-full text-left text-sm min-w-[600px]">
+                                <thead class="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-100">
+                                    <tr>
+                                        <th class="px-6 py-4 rounded-tl-xl">Judul Halaman</th>
+                                        <th class="px-6 py-4">Slug URL</th>
+                                        <th class="px-6 py-4 text-right rounded-tr-xl">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="list-my-pages" class="divide-y divide-slate-100">
+                                    <tr>
+                                        <td colspan="3" class="px-6 py-8 text-center text-slate-400 text-xs">
+                                            Belum ada halaman yang dibuat.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            
+            <div class="mt-20 text-center border-t border-slate-200 pt-8 max-w-2xl mx-auto">
+                <p class="text-xs font-semibold text-slate-400">&copy; 2026 <span class="dyn-site-name text-slate-600"><span class="opacity-0">Loading...</span></span>. All rights reserved.</p>
+            </div>
+
+        </div>
+    </main>
+
+
+
+    <script>
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            let icon = 'check-circle';
+            if (type === 'error') icon = 'x-circle';
+            if (type === 'warning') icon = 'alert-triangle';
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 flex-shrink-0"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons({ root: toast });
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 400);
+            }, 3000);
+        }
+
+        const DASHBOARD_CACHE_KEY = 'cepat_dashboard_data';
+        const DASHBOARD_CACHE_AGE = 60 * 1000;
+
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sb.classList.toggle('open');
+            overlay.classList.toggle('open');
+        }
+
+        /* Deprecated/Removed Functions */
+        /* openPasswordModal & closePasswordModal moved to bottom script to match new modal ID */
+
+        let userEmail = sessionStorage.getItem('user_email');
+        let userNama = sessionStorage.getItem('user_nama');
+        const userId = sessionStorage.getItem('user_id'); 
+        
+        if (!userEmail) { window.location.href = 'login.html'; }
+        
+        // Dynamic Greeting & Avatar Logic
+        // Fallback name logic: Nama -> Email -> 'Member'
+        let displayName = userNama;
+        // Robust check for invalid values (null, undefined, empty, or just spaces)
+        if (!displayName || displayName === 'null' || displayName === 'undefined' || displayName.trim() === '') {
+            displayName = userEmail ? userEmail.split('@')[0] : 'Member';
+        }
+
+        if (displayName) { 
+            // Ensure no leading/trailing spaces
+            displayName = displayName.trim();
+            
+            // Time-based Greeting
+            const hour = new Date().getHours();
+            let greeting = 'Selamat Pagi';
+            if (hour >= 11 && hour < 15) greeting = 'Selamat Siang';
+            else if (hour >= 15 && hour < 18) greeting = 'Selamat Sore';
+            else if (hour >= 18) greeting = 'Selamat Malam';
+            
+            // Update Header Text
+            const headerNameEl = document.getElementById('header-name');
+            if (headerNameEl) {
+                // Find parent p tag to update full text
+                const parentP = headerNameEl.parentElement;
+                // Use full displayName as requested (Nama Lengkap)
+                parentP.innerHTML = `${greeting}, <span id="header-name" class="text-indigo-600 font-bold capitalize">${displayName}</span>!`;
+            }
+
+            // Update Dynamic Avatar
+            const avatarImg = document.getElementById('header-avatar');
+            const avatarIcon = document.getElementById('header-avatar-icon');
+            if(avatarImg && avatarIcon) {
+                // Use displayName instead of raw userNama to ensure fallback works
+                avatarImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=4f46e5&color=fff&size=128&bold=true`;
+                avatarImg.onload = function() {
+                    avatarImg.classList.remove('hidden');
+                    avatarIcon.classList.add('hidden');
+                };
+            }
+        }
+
+        // Real-time Password Validation
+        document.addEventListener('DOMContentLoaded', () => {
+            // Edit Profile Password Validation
+            const profilePwd = document.getElementById('profile-password');
+            const profilePwdFeedback = document.getElementById('profile-pwd-feedback');
+            
+            if(profilePwd && profilePwdFeedback) {
+                profilePwd.addEventListener('input', function() {
+                    if(this.value.length > 0) {
+                        profilePwdFeedback.classList.remove('hidden');
+                        if(this.value.length < 6) {
+                            profilePwdFeedback.innerText = "Password terlalu pendek (min 6 karakter)";
+                            profilePwdFeedback.className = "text-[10px] mt-1 font-bold text-amber-500";
+                        } else {
+                            profilePwdFeedback.innerText = "Password valid";
+                            profilePwdFeedback.className = "text-[10px] mt-1 font-bold text-emerald-500";
+                        }
+                    } else {
+                        profilePwdFeedback.classList.add('hidden');
+                    }
+                });
+            }
+
+            // Change Password Validation
+            const newPwd = document.getElementById('input-password-baru');
+            const confirmPwd = document.getElementById('input-konfirmasi-password');
+            const changePwdFeedback = document.getElementById('change-pwd-feedback');
+
+            function validateMatch() {
+                if(!newPwd || !confirmPwd || !changePwdFeedback) return;
+                
+                if(confirmPwd.value.length > 0) {
+                    changePwdFeedback.classList.remove('hidden');
+                    if(newPwd.value !== confirmPwd.value) {
+                        changePwdFeedback.innerText = "Password tidak cocok!";
+                        changePwdFeedback.className = "text-[10px] mt-1 font-bold text-red-500";
+                    } else {
+                        changePwdFeedback.innerText = "Password cocok!";
+                        changePwdFeedback.className = "text-[10px] mt-1 font-bold text-emerald-500";
+                    }
+                } else {
+                    changePwdFeedback.classList.add('hidden');
+                }
+            }
+
+            if(newPwd && confirmPwd) {
+                newPwd.addEventListener('input', validateMatch);
+                confirmPwd.addEventListener('input', validateMatch);
+            }
+        });
+
+        const domainWeb = window.location.origin + "/index.html"; 
+        // Fallback jika tidak ada userId
+        const affLink = `${domainWeb}?ref=${userId || 'GUEST'}`;
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('aff-link-display').innerText = affLink;
+        });
+
+        function copyAffLink() {
+            navigator.clipboard.writeText(affLink);
+            showToast("Link Affiliate berhasil disalin!", "success");
+        }
+
+        function copyPromoLink(productId) {
+            const currentUserId = sessionStorage.getItem('user_id') || 'GUEST';
+            // Coba deteksi base URL
+            let baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            if(baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+            
+            const finalAffLink = `${baseUrl}/checkout.html?id=${productId}&ref=${currentUserId}`;
+            
+            navigator.clipboard.writeText(finalAffLink);
+            showToast("Link promosi produk berhasil disalin!", "success");
+        }
+
+        function requestWithdrawal() {
+            const saldoEl = document.getElementById('display-saldo-komisi').innerText;
+            if(saldoEl === 'Rp 0' || saldoEl.includes('...')) {
+                showToast("Saldo belum mencukupi untuk penarikan.", "warning");
+                return;
+            }
+            if(!window.waAdminGlobal) {
+                showToast("Sedang memuat kontak Admin, coba sesaat lagi.", "warning");
+                return;
+            }
+            
+            const siteNameElements = document.querySelectorAll('.dyn-site-name');
+            const dSiteName = siteNameElements.length > 0 ? siteNameElements[0].innerText : "Admin";
+
+            const waMsg = `Halo ${dSiteName}! 👋\n\nSaya ingin mengajukan pencairan komisi afiliasi.\n\n👤 *Nama:* ${userNama}\n🆔 *ID Member:* ${userId}\n💰 *Total Saldo:* ${saldoEl}\n\nMohon diproses. Terima kasih!`;
+            window.open(`https://wa.me/${window.waAdminGlobal}?text=${encodeURIComponent(waMsg)}`, '_blank');
+        }
+
+        async function prosesGantiPassword(event) {
+            if(event) event.preventDefault(); 
+            const oldPassword = document.getElementById('input-password-lama').value;
+            const newPassword = document.getElementById('input-password-baru').value;
+            const confirmPassword = document.getElementById('input-konfirmasi-password').value;
+            const btn = document.getElementById('btn-save-pass');
+            const oriText = btn.innerHTML;
+
+            if (newPassword !== confirmPassword) {
+                showToast("Konfirmasi password tidak cocok!", "error");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Loading...';
+            lucide.createIcons();
+
+            try {
+                if(typeof SCRIPT_URL === 'undefined') throw new Error("Config.js error");
+                const res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'change_password', email: userEmail, old_password: oldPassword, new_password: newPassword })
+                });
+                const r = await res.json();
+                if (r.status === 'success') {
+                    showToast("Password berhasil diperbarui!", "success");
+                    closePasswordModal();
+                } else {
+                    showToast(r.message || "Gagal mengubah password.", "error");
+                }
+            } catch (error) {
+                showToast("Koneksi gagal. Coba lagi nanti.", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = oriText;
+                lucide.createIcons();
+            }
+        }
+
+        function downloadPageHTML(slug, productId) {
+            let page = null;
+            
+            // 1. Check global pages
+            if (window.cachedPages) {
+                page = window.cachedPages.find(x => x[1] === slug);
+            }
+            
+            // 2. Check my pages
+            if (!page && window.myCachedPages) {
+                page = window.myCachedPages.find(x => x[1] === slug);
+            }
+
+            // 3. Check current modal content (for preview/download before save)
+            if (!page) {
+                const modalSlug = document.getElementById('pg-slug') ? document.getElementById('pg-slug').value : '';
+                if (slug === modalSlug) {
+                     const title = document.getElementById('pg-title').value;
+                     const content = document.getElementById('pg-content').value;
+                     const pixelId = document.getElementById('pg-pixel-id').value;
+                     if(content) {
+                         // Mock page object structure: [id, slug, title, content, ..., ..., owner, pixelId]
+                         // Index 7 is pixelId
+                         page = ['TEMP', slug, title, content, 'Active', '', '', pixelId];
+                     }
+                }
+            }
+            
+            if (!page) return showToast('Konten halaman tidak ditemukan', 'error');
+            
+            let content = page[3];
+            if (!content) return showToast('Konten HTML kosong!', 'warning');
+
+            // Replace LINK_AFF with actual affiliate checkout link
+            if (productId) {
+                const userId = sessionStorage.getItem('user_id') || 'GUEST';
+                let baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                if(baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                
+                const checkoutUrl = `${baseUrl}/checkout.html?id=${productId}&ref=${userId}`;
+                content = content.replace(/LINK_AFF/g, checkoutUrl);
+            }
+            
+            // Inject Meta Pixel
+            const pixelId = page[7];
+            if (pixelId) {
+                const pixelScript = `
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '${pixelId}');
+fbq('track', 'PageView');
+<\/script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+`;
+                if (content.includes('</head>')) {
+                    content = content.replace('</head>', pixelScript + '</head>');
+                } else {
+                    content = pixelScript + content;
+                }
+            }
+            
+            const filename = (slug || 'landing-page') + '.html';
+            const blob = new Blob([content], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('HTML berhasil diunduh dengan link affiliate!', 'success');
+        }
+
+        function renderDashboardUI(r) {
+
+            if (r.pages) window.cachedPages = r.pages;
+            if (r.affiliate_pixels) window.currentAffiliatePixels = r.affiliate_pixels;
+            
+            // Render Sponsor Info
+            if (r.user && r.user.upline_name) {
+                const sponsorCard = document.getElementById('sponsor-info-card');
+                const sponsorNameEl = document.getElementById('display-upline-name');
+                if(sponsorCard && sponsorNameEl) {
+                    sponsorNameEl.innerText = r.user.upline_name;
+                    sponsorCard.classList.remove('hidden');
+                }
+            }
+
+            if (r.my_pages) renderMyPages(r.my_pages);
+            if (r.partners) renderPartners(r.partners);
+            if (r.total_komisi !== undefined) {
+                document.getElementById('display-saldo-komisi').innerText = 'Rp ' + Number(r.total_komisi).toLocaleString('id-ID');
+            }
+
+            const ownedContainer = document.getElementById('list-owned');
+            if (r.owned && r.owned.length > 0) {
+                ownedContainer.innerHTML = r.owned.map(p => {
+                    const hasPixel = window.currentAffiliatePixels && window.currentAffiliatePixels.find(x => String(x.product_id) === String(p.id) && x.pixel_id);
+                    const pixelBtnClass = hasPixel 
+                        ? "text-indigo-600 bg-indigo-50 border-indigo-200" 
+                        : "text-slate-400 hover:text-indigo-600 bg-white border-slate-200";
+                    return `
+                    <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col h-full group fade-in-up relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <i data-lucide="award" class="w-24 h-24 text-indigo-600 transform rotate-12 translate-x-4 -translate-y-4"></i>
+                        </div>
+                        <div class="relative z-10 flex flex-col h-full">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs shadow-sm">
+                                    <i data-lucide="package" class="w-5 h-5"></i>
+                                </div>
+                                <span class="bg-emerald-50 border border-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                                    <i data-lucide="check-circle-2" class="w-3 h-3"></i> Aktif
+                                </span>
+                            </div>
+                            ${p.image_url ? `<div class="w-full aspect-square rounded-2xl overflow-hidden mb-6 border border-slate-100"><img src="${p.image_url}" class="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500" onerror="this.style.display='none'" loading="lazy" decoding="async"></div>` : ''}
+                            <h3 class="text-lg font-bold text-slate-800 mb-2 leading-tight group-hover:text-indigo-600 transition-colors clamp-2">${p.title}</h3>
+                            <p class="text-xs text-slate-500 mb-6 flex-1 clamp-3 leading-relaxed">${p.desc}</p>
+                            
+                            ${p.commission > 0 ? `
+                            <div class="mb-6 pt-4 border-t border-slate-50">
+                                <p class="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">Komisi Affiliate</p>
+                                <span class="text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">Rp ${Number(p.commission).toLocaleString('id-ID')}</span>
+                            </div>` : ''}
+
+                            <div class="flex gap-2 mt-auto">
+                                <a href="akses.html?id=${p.id}" class="flex-1 bg-slate-900 text-white px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-indigo-600 transition-colors flex justify-center items-center gap-2 shadow-lg shadow-slate-200">
+                                    Akses Materi <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                                </a>
+                                <button onclick="copyPromoLink('${p.id}')" class="bg-white text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 px-4 py-3 rounded-xl transition-colors border border-slate-200 shadow-sm" title="Salin Link Affiliate">
+                                    <i data-lucide="share-2" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="openPixelModal('${p.id}', '${p.title}')" data-pixel-btn="${p.id}" class="${pixelBtnClass} px-4 py-3 rounded-xl transition-colors border shadow-sm" title="Konfigurasi Pixel">
+                                    <i data-lucide="target" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `; }).join('');
+            } else {
+                ownedContainer.innerHTML = `
+                    <div class="col-span-full bg-slate-50 border-2 border-dashed border-slate-200 p-10 rounded-[2rem] text-center fade-in-up">
+                        <div class="w-16 h-16 bg-white border border-slate-100 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><i data-lucide="folder-open" class="w-8 h-8"></i></div>
+                        <p class="text-slate-500 font-bold text-sm">Belum ada materi aktif.</p>
+                        <p class="text-slate-400 text-xs mt-1">Produk yang Anda beli akan muncul di sini setelah dikonfirmasi.</p>
+                    </div>
+                `;
+            }
+
+            const availableContainer = document.getElementById('list-available');
+            if (r.available && r.available.length > 0) {
+                // Render Product Catalog
+                const uplineRef = (r.user && r.user.upline_id) ? r.user.upline_id : '';
+                
+                // Use slice() to create a copy before reversing to avoid mutating the original array (and cache)
+                availableContainer.innerHTML = r.available.slice().reverse().map(p => {
+                    const targetLink = `checkout.html?id=${p.id}${uplineRef ? '&ref='+uplineRef : ''}`; // Direct checkout with Upline Ref
+                    
+                    const hasPixel = window.currentAffiliatePixels && window.currentAffiliatePixels.find(x => String(x.product_id) === String(p.id) && x.pixel_id);
+                    const pixelBtnClass = hasPixel 
+                        ? "text-indigo-600 bg-indigo-50 border-indigo-200" 
+                        : "text-slate-400 hover:text-indigo-600 bg-white border-slate-200";
+
+                    return `
+                    <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col h-full fade-in-up group relative overflow-hidden">
+                        <div class="relative z-10 flex flex-col h-full">
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="bg-indigo-50 border border-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                                    <i data-lucide="tag" class="w-3 h-3"></i> Tersedia
+                                </span>
+                            </div>
+                            ${p.image_url ? `<div class="w-full aspect-square rounded-2xl overflow-hidden mb-6 border border-slate-100"><img src="${p.image_url}" class="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500" onerror="this.style.display='none'" loading="lazy" decoding="async"></div>` : ''}
+                            <h3 class="text-lg font-bold text-slate-800 mb-2 leading-tight clamp-2">${p.title}</h3>
+                            <p class="text-xs text-slate-500 mb-4 flex-1 clamp-2 leading-relaxed">${p.desc}</p>
+                            <div class="flex justify-between items-end mb-6 pt-4 border-t border-slate-50">
+                                <div>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Harga</p>
+                                    <span class="text-xl font-bold text-slate-800">Rp ${Number(p.harga).toLocaleString('id-ID')}</span>
+                                </div>
+                                ${p.commission > 0 ? `
+                                <div class="text-right">
+                                    <p class="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">Komisi</p>
+                                    <span class="text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">Rp ${Number(p.commission).toLocaleString('id-ID')}</span>
+                                </div>` : ''}
+                            </div>
+                            
+                            <div class="flex gap-2 mt-auto">
+                                <a href="${targetLink}" class="flex-1 bg-indigo-600 text-white px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide text-center hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
+                                    Beli Sekarang
+                                </a>
+                                <button onclick="copyPromoLink('${p.id}')" class="bg-white text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 px-4 py-3 rounded-xl transition-colors border border-slate-200 shadow-sm" title="Salin Link Affiliate">
+                                    <i data-lucide="share-2" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="openPixelModal('${p.id}', '${p.title}')" data-pixel-btn="${p.id}" class="${pixelBtnClass} px-4 py-3 rounded-xl transition-colors border shadow-sm" title="Konfigurasi Pixel">
+                                    <i data-lucide="target" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+
+                // Render Affiliate Landing Page Links (New Section)
+                const affiliateContainer = document.getElementById('list-affiliate-tools');
+                if (affiliateContainer) {
+                    const userId = sessionStorage.getItem('user_id') || 'GUEST';
+                    // Get base URL for checkout fallback
+                    let baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                    if(baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+                    // Use the same available products list for affiliate links
+                    // Note: r.available is reversed above, but here we can use original order or reversed.
+                    // Let's use the same list to be consistent.
+                    affiliateContainer.innerHTML = r.available.map(p => {
+                        let targetUrl = p.lp_url;
+                        if (!targetUrl) {
+                            targetUrl = `${baseUrl}/checkout.html?id=${p.id}`;
+                        }
+                        
+                        // Smartly append ref
+                        const separator = targetUrl.includes('?') ? '&' : '?';
+                        const finalAffLink = `${targetUrl}${separator}ref=${userId}`;
+
+                        let downloadBtn = '';
+                        if (p.lp_url && window.cachedPages) {
+                             const slug = p.lp_url.replace('.html', '').split('?')[0];
+                             const hasPage = window.cachedPages.find(x => x[1] === slug);
+                             if (hasPage) {
+                                 downloadBtn = `
+                                <button onclick="downloadPageHTML('${slug}', '${p.id}')" class="bg-white text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 px-3 py-2.5 rounded-xl transition-colors border border-slate-200 shadow-sm" title="Unduh HTML Landing Page">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                </button>`;
+                             }
+                        }
+
+                        const hasPixel = window.currentAffiliatePixels && window.currentAffiliatePixels.find(x => String(x.product_id) === String(p.id) && x.pixel_id);
+                        const pixelBtnClass = hasPixel 
+                            ? "text-indigo-600 bg-indigo-50 border-indigo-200" 
+                            : "text-slate-400 hover:text-indigo-600 bg-white border-slate-200";
+
+                        return `
+                        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 group hover:border-indigo-100 transition-all fade-in-up">
+                            <div class="flex items-center gap-3 mb-1">
+                                <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 shadow-sm border border-indigo-100">
+                                    <i data-lucide="layout-template" class="w-5 h-5"></i>
+                                </div>
+                                <div class="overflow-hidden">
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Landing Page</p>
+                                    <h4 class="font-bold text-slate-800 text-sm truncate" title="${p.title}">${p.title}</h4>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                                <i data-lucide="globe" class="w-3 h-3 text-slate-400 shrink-0"></i>
+                                <input type="text" readonly value="${finalAffLink}" class="bg-transparent border-none text-xs text-slate-600 w-full focus:outline-none font-mono truncate" onclick="this.select()">
+                            </div>
+                            
+                            <div class="flex gap-2 mt-1">
+                                <button onclick="navigator.clipboard.writeText('${finalAffLink}'); showToast('Link Landing Page berhasil disalin!')" class="flex-1 bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-200/50">
+                                    <i data-lucide="copy" class="w-3 h-3"></i> Salin Link
+                                </button>
+                                <button onclick="openPixelModal('${p.id}', '${p.title}')" data-pixel-btn="${p.id}" class="${pixelBtnClass} px-3 py-2.5 rounded-xl transition-colors border shadow-sm" title="Konfigurasi Pixel">
+                                    <i data-lucide="target" class="w-4 h-4"></i>
+                                </button>
+                                ${downloadBtn}
+                                <a href="${finalAffLink}" target="_blank" class="px-3 py-2.5 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 rounded-xl transition-colors flex items-center justify-center shadow-sm">
+                                    <i data-lucide="external-link" class="w-4 h-4"></i>
+                                </a>
+                            </div>
+                        </div>
+                        `;
+                    }).join('');
+                }
+            } else {
+                availableContainer.innerHTML = `<p class="col-span-full text-slate-400 font-bold text-center text-xs uppercase tracking-widest py-10 fade-in-up">Belum ada produk tambahan.</p>`;
+                const affiliateContainer = document.getElementById('list-affiliate-tools');
+                if (affiliateContainer) {
+                     affiliateContainer.innerHTML = `
+                        <div class="col-span-full py-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 fade-in-up">
+                            <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">Belum ada produk untuk dipromosikan.</p>
+                        </div>
+                    `;
+                }
+            }
+
+            lucide.createIcons();
+        }
+
+        async function loadDashboard() {
+            const cacheKeyUser = DASHBOARD_CACHE_KEY + '_' + userEmail;
+            const cachedRaw = localStorage.getItem(cacheKeyUser);
+            const globalCache = window.__CEPAT_GLOBAL_SETTINGS__ || {};
+            let cachedData = null;
+            let cachedAt = 0;
+            let cachedDashboardVersion = '';
+            try {
+                const parsed = cachedRaw ? JSON.parse(cachedRaw) : null;
+                if (parsed && typeof parsed === 'object' && parsed.data) {
+                    cachedData = parsed.data;
+                    cachedAt = Number(parsed.time || 0);
+                    cachedDashboardVersion = String(parsed.version || '');
+                } else if (parsed && typeof parsed === 'object') {
+                    cachedData = parsed;
+                }
+            } catch (e) { cachedData = null; }
+            
+            if(cachedData) {
+                // Apply cached settings immediately for better UX
+                if(cachedData.settings) applyGlobalSettings(cachedData.settings);
+                renderDashboardUI(cachedData);
+            }
+
+            try {
+                if(typeof SCRIPT_URL === 'undefined') return;
+                const cacheState = (window.CEPAT_CACHE_STATE && typeof window.CEPAT_CACHE_STATE.ensureFresh === 'function')
+                    ? await window.CEPAT_CACHE_STATE.ensureFresh()
+                    : null;
+                const currentDashboardVersion = String((cacheState && cacheState.dashboard) || '');
+                const currentSettingsVersion = String((cacheState && cacheState.settings) || '');
+                const cachedSettingsVersion = String((globalCache.cached && globalCache.cached.version) || '');
+                const isDashboardFresh = !!(cachedAt && (Date.now() - cachedAt <= DASHBOARD_CACHE_AGE));
+                const isDashboardVersionStale = !!currentDashboardVersion && cachedDashboardVersion !== currentDashboardVersion;
+                const isSettingsVersionStale = !!currentSettingsVersion && cachedSettingsVersion !== currentSettingsVersion;
+                if (cachedData && isDashboardFresh && !isDashboardVersionStale && !isSettingsVersionStale) return;
+                
+                // SINGLE BATCH REQUEST - OPTIMIZED
+                // Menggantikan 3 request terpisah (settings, products, pages) menjadi 1
+                const res = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ action: 'get_dashboard_data', email: userEmail, cache_version: currentDashboardVersion }) 
+                });
+                const r = await res.json();
+
+                if (r.status === 'success' && r.data) {
+                    // Gabungkan data backend ke format UI
+                    const combinedData = {
+                        ...r.data.products, // owned, available, partners, total_komisi
+                        pages: r.data.pages,
+                        settings: r.data.settings,
+                            user: r.data.user, // Include user data (id, nama, upline_id)
+                            affiliate_pixels: r.data.affiliate_pixels
+                        };
+
+                        const freshData = JSON.stringify(combinedData);
+                        const previousData = cachedData ? JSON.stringify(cachedData) : '';
+                        const nextDashboardVersion = String((r && r.cache_version) || currentDashboardVersion || '');
+                    
+                        // Update cache & UI
+                        if(previousData !== freshData) {
+                            localStorage.setItem(cacheKeyUser, JSON.stringify({ data: combinedData, time: Date.now(), version: nextDashboardVersion }));
+                            // Update Global Settings (Logo, Favicon, WA, etc)
+                            if(r.data.settings) {
+                                if (globalCache && typeof globalCache.sync === 'function') globalCache.sync(r.data.settings, Date.now(), currentSettingsVersion);
+                                else applyGlobalSettings(r.data.settings);
+                            }
+                            renderDashboardUI(combinedData);
+                        } else {
+                            localStorage.setItem(cacheKeyUser, JSON.stringify({ data: cachedData || combinedData, time: Date.now(), version: nextDashboardVersion || cachedDashboardVersion }));
+                        }
+                } else { 
+                    if(!cachedData) showToast('Gagal memuat data: ' + (r.message || 'Server Error'), 'error'); 
+                    console.error("Server Error:", r);
+                }
+            } catch (err) { 
+                console.error("Dashboard Load Error:", err);
+                if(!cachedData) showToast('Koneksi internet bermasalah: ' + err.toString(), 'error'); 
+            }
+        }
+
+        function switchSection(sectionId) {
+            // Hide all sections
+            document.getElementById('dashboard-content').classList.add('hidden');
+            document.getElementById('section-partner').classList.add('hidden');
+            document.getElementById('section-products').classList.add('hidden');
+            document.getElementById('section-landing-pages').classList.add('hidden');
+            
+            // Show target section
+            if(sectionId === 'dashboard') document.getElementById('dashboard-content').classList.remove('hidden');
+            if(sectionId === 'partner') document.getElementById('section-partner').classList.remove('hidden');
+            if(sectionId === 'products') document.getElementById('section-products').classList.remove('hidden');
+            if(sectionId === 'landing-pages') document.getElementById('section-landing-pages').classList.remove('hidden');
+            
+            // Update Sidebar Active State
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if(sectionId === 'dashboard') document.getElementById('nav-dashboard').classList.add('active');
+            if(sectionId === 'partner') document.getElementById('nav-partner').classList.add('active');
+            if(sectionId === 'products') document.getElementById('nav-products').classList.add('active');
+            if(sectionId === 'landing-pages') document.getElementById('nav-landing-pages').classList.add('active');
+            
+            // Re-initialize icons if needed (sometimes helps with hidden elements)
+            setTimeout(() => lucide.createIcons(), 50);
+        }
+
+        function renderPartners(partners) {
+            const container = document.getElementById('list-partners');
+            if (!partners || partners.length === 0) {
+                container.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center">
+                            <div class="flex flex-col items-center gap-4">
+                                <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                                    <i data-lucide="users" class="w-8 h-8"></i>
+                                </div>
+                                <div>
+                                    <p class="text-slate-500 font-bold mb-1">Belum ada Partner</p>
+                                    <p class="text-slate-400 text-xs">Bagikan link affiliate Anda untuk mendapatkan partner.</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            container.innerHTML = partners.map(p => {
+                let statusClass = "bg-slate-100 text-slate-600 border-slate-200";
+                let statusIcon = "clock";
+                
+                if(String(p.status).toLowerCase() === 'lunas') {
+                    statusClass = "bg-emerald-50 text-emerald-600 border-emerald-100";
+                    statusIcon = "check-circle-2";
+                } else if(String(p.status).toLowerCase() === 'pending') {
+                    statusClass = "bg-amber-50 text-amber-600 border-amber-100";
+                    statusIcon = "hourglass";
+                }
+
+                return `
+                <tr class="hover:bg-slate-50/50 transition-colors group">
+                    <td class="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
+                        ${p.date}
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs uppercase border border-indigo-100">
+                                ${p.name.charAt(0)}
+                            </div>
+                            <div>
+                                <p class="text-slate-800 font-bold text-sm group-hover:text-indigo-600 transition-colors">${p.name}</p>
+                                <p class="text-xs text-slate-400 font-mono">#${p.invoice}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <p class="text-slate-600 text-xs font-medium bg-white border border-slate-200 px-2 py-1 rounded inline-block">
+                            ${p.product}
+                        </p>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusClass}">
+                            <i data-lucide="${statusIcon}" class="w-3 h-3"></i> ${p.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <span class="font-bold text-emerald-600 text-sm font-mono tracking-tight">
+                            Rp ${Number(p.commission).toLocaleString('id-ID')}
+                        </span>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            localStorage.removeItem(DASHBOARD_CACHE_KEY + '_' + userEmail);
+            window.location.href = 'login.html';
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            lucide.createIcons();
+            loadDashboard();
+            // loadMyPages() is now handled by loadDashboard via batch request
+        });
+    </script>
+    <!-- Password Modal -->
+    <div id="modal-password" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closePasswordModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md p-4">
+            <div class="bg-white rounded-3xl shadow-2xl overflow-hidden fade-in-up">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <h3 class="font-bold text-lg text-slate-800">Ganti Password</h3>
+                    <button onclick="closePasswordModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Password Lama</label>
+                        <input type="password" id="input-password-lama" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-medium text-slate-800 placeholder:text-slate-400" placeholder="Masukkan password saat ini">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Password Baru</label>
+                        <input type="password" id="input-password-baru" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-medium text-slate-800 placeholder:text-slate-400" placeholder="Minimal 6 karakter">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Konfirmasi Password</label>
+                        <input type="password" id="input-konfirmasi-password" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-medium text-slate-800 placeholder:text-slate-400" placeholder="Ulangi password baru">
+                        <p id="change-pwd-feedback" class="text-[10px] mt-1 font-bold hidden"></p>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                    <button onclick="closePasswordModal()" class="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-colors">Batal</button>
+                    <button onclick="prosesGantiPassword()" id="btn-save-pass" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2">
+                        Simpan Password
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div id="modal-profile" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeProfileModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md p-4">
+            <div class="bg-white rounded-3xl shadow-2xl overflow-hidden fade-in-up">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <h3 class="font-bold text-lg text-slate-800">Edit Profile</h3>
+                    <button onclick="closeProfileModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="p-4 bg-amber-50 text-amber-800 text-xs rounded-xl border border-amber-100 flex gap-3">
+                        <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0 text-amber-500"></i>
+                        <p>Mengubah email akan mengubah data login Anda. Pastikan email yang Anda masukkan aktif dan valid.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nama Lengkap</label>
+                        <input type="text" id="profile-name" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-medium text-slate-800 placeholder:text-slate-400" placeholder="Nama Anda">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Email Login</label>
+                        <input type="email" id="profile-email" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-medium text-slate-800 placeholder:text-slate-400" placeholder="email@contoh.com">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Konfirmasi Password</label>
+                        <input type="password" id="profile-password" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-medium text-slate-800 placeholder:text-slate-400" placeholder="Masukkan password untuk konfirmasi">
+                        <p id="profile-pwd-feedback" class="text-[10px] mt-1 font-bold hidden"></p>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                    <button onclick="closeProfileModal()" class="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-colors">Batal</button>
+                    <button onclick="saveProfile()" id="btn-save-profile" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2">
+                        Simpan Perubahan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openPasswordModal() {
+            document.getElementById('modal-password').classList.remove('hidden');
+        }
+        function closePasswordModal() {
+            document.getElementById('modal-password').classList.add('hidden');
+        }
+
+        function openProfileModal() {
+            document.getElementById('profile-name').value = sessionStorage.getItem('user_nama') || '';
+            document.getElementById('profile-email').value = sessionStorage.getItem('user_email') || '';
+            document.getElementById('modal-profile').classList.remove('hidden');
+        }
+        function closeProfileModal() {
+            document.getElementById('modal-profile').classList.add('hidden');
+        }
+
+        async function saveProfile() {
+            const newName = document.getElementById('profile-name').value;
+            const newEmail = document.getElementById('profile-email').value;
+            const password = document.getElementById('profile-password').value;
+            const btn = document.getElementById('btn-save-profile');
+            const oriText = btn.innerHTML;
+
+            if(!newName || !newEmail || !password) {
+                showToast("Semua kolom wajib diisi!", "warning");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Loading...';
+            lucide.createIcons();
+
+            try {
+                const res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        action: 'update_profile', 
+                        email: userEmail, // Current email to identify user
+                        new_name: newName,
+                        new_email: newEmail,
+                        password: password
+                    })
+                });
+                const r = await res.json();
+                
+                if(r.status === 'success') {
+                    showToast("Profil berhasil diperbarui!", "success");
+                    
+                    // Clear Cache for OLD email first
+                    localStorage.removeItem(DASHBOARD_CACHE_KEY + '_' + userEmail);
+
+                    // Update Global Vars
+                    userNama = r.new_name;
+                    userEmail = r.new_email;
+                    
+                    // Update Session Storage
+                    sessionStorage.setItem('user_nama', r.new_name);
+                    sessionStorage.setItem('user_email', r.new_email);
+                    
+                    // Update UI (Header Name)
+                    if(document.getElementById('header-name')) {
+                        document.getElementById('header-name').innerText = r.new_name.split(' ')[0];
+                    }
+                    
+                    closeProfileModal();
+                } else {
+                    showToast(r.message || "Gagal memperbarui profil", "error");
+                }
+            } catch(e) {
+                showToast("Terjadi kesalahan koneksi", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = oriText;
+                lucide.createIcons();
+            }
+        }
+    </script>
+
+    <!-- Page Editor Modal -->
+    <div id="modal-page" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('modal-page')"></div>
+        <div class="bg-white w-full max-w-5xl rounded-[2.5rem] p-6 md:p-10 shadow-2xl max-h-[95vh] overflow-y-auto custom-scroll relative z-10 fade-in-up">
+            <button onclick="closeModal('modal-page')" class="absolute top-6 right-6 p-2 bg-slate-50 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+
+            <h3 class="text-2xl font-bold mb-2 text-slate-800">Editor Halaman</h3>
+            <p class="text-slate-500 text-sm mb-8">Buat halaman landing page atau informasi.</p>
+            
+            <form id="form-page" class="space-y-5">
+                <input type="hidden" id="pg-id"><input type="hidden" id="pg-is-edit">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-2 block">Judul Halaman</label>
+                        <input type="text" id="pg-title" placeholder="Judul Halaman" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold transition-all" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-2 block">Slug URL</label>
+                        <input type="text" id="pg-slug" placeholder="slug-halaman" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold transition-all" required onblur="checkSlugAvailability(this)">
+                        <p id="slug-feedback" class="text-xs font-medium mt-2 hidden"></p>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-2 block">Tema Halaman</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <label class="cursor-pointer relative">
+                                <input type="radio" name="pg-theme" value="light" class="peer sr-only" checked>
+                                <div class="p-4 rounded-xl border border-slate-200 bg-white peer-checked:border-indigo-500 peer-checked:bg-indigo-50 transition-all flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+                                        <i data-lucide="sun" class="w-4 h-4 text-amber-500"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-slate-800 text-sm">Light Mode</p>
+                                        <p class="text-[10px] text-slate-500">Latar putih, teks gelap</p>
+                                    </div>
+                                    <i data-lucide="check-circle" class="w-5 h-5 text-indigo-600 ml-auto opacity-0 peer-checked:opacity-100 transition-opacity"></i>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer relative">
+                                <input type="radio" name="pg-theme" value="dark" class="peer sr-only">
+                                <div class="p-4 rounded-xl border border-slate-200 bg-slate-900 peer-checked:border-indigo-500 peer-checked:ring-2 peer-checked:ring-indigo-500/20 transition-all flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+                                        <i data-lucide="moon" class="w-4 h-4 text-indigo-400"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-white text-sm">Dark Mode</p>
+                                        <p class="text-[10px] text-slate-400">Latar gelap, teks putih</p>
+                                    </div>
+                                    <i data-lucide="check-circle" class="w-5 h-5 text-indigo-400 ml-auto opacity-0 peer-checked:opacity-100 transition-opacity"></i>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Meta Pixel Config -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i data-lucide="activity" class="w-4 h-4 text-indigo-500"></i>
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Konfigurasi Meta Pixel (Opsional)</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 mb-1 block">Pixel ID</label>
+                            <input type="text" id="pg-pixel-id" placeholder="Ex: 123456789" class="w-full p-3 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-xs font-mono transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 mb-1 block">Access Token</label>
+                            <input type="text" id="pg-pixel-token" placeholder="Ex: EAA..." class="w-full p-3 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-xs font-mono transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 mb-1 block">Test Event Code</label>
+                            <input type="text" id="pg-pixel-test" placeholder="Ex: TEST1234" class="w-full p-3 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-xs font-mono transition-all">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-2 block">Konten HTML</label>
+                    <textarea id="pg-content" rows="15" placeholder="<!-- Paste kode HTML Landing Page di sini -->" class="w-full p-6 bg-slate-900 text-emerald-400 border border-slate-800 rounded-xl font-mono text-xs custom-scroll focus:ring-2 focus:ring-indigo-500/50 outline-none"></textarea>
+                </div>
+                <div class="flex items-center pt-6 border-t border-slate-100">
+                    <button type="button" onclick="downloadPageHTML(document.getElementById('pg-slug').value)" class="mr-auto bg-emerald-50 text-emerald-600 border border-emerald-100 px-6 py-4 rounded-xl font-bold hover:bg-emerald-100 hover:text-emerald-700 transition-colors text-xs uppercase tracking-wide flex items-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i> DOWNLOAD HTML
+                    </button>
+                    <div class="flex gap-4">
+                        <button type="button" onclick="closeModal('modal-page')" class="font-bold text-slate-400 hover:text-slate-600 transition-colors px-4 py-4">BATAL</button>
+                        <button type="submit" class="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all uppercase text-xs tracking-wide">SIMPAN HALAMAN</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Impl function to avoid duplicate code issues
+        window.downloadPageHTML_impl = function(slug, productId) {
+            let page = null;
+            
+            // 1. Check global pages
+            if (window.cachedPages) {
+                page = window.cachedPages.find(x => x[1] === slug);
+            }
+            
+            // 2. Check my pages
+            if (!page && window.myCachedPages) {
+                page = window.myCachedPages.find(x => x[1] === slug);
+            }
+            
+            // 3. Check current modal content (for preview/download before save)
+            if (!page) {
+                const modalSlug = document.getElementById('pg-slug') ? document.getElementById('pg-slug').value : '';
+                if (slug === modalSlug) {
+                     const title = document.getElementById('pg-title').value;
+                     const content = document.getElementById('pg-content').value;
+                     if(content) {
+                         page = ['TEMP', slug, title, content];
+                     }
+                }
+            }
+
+            if (!page) return showToast('Konten halaman tidak ditemukan', 'error');
+            
+            let content = page[3];
+            if (!content) return showToast('Konten HTML kosong!', 'warning');
+
+            // Replace LINK_AFF with actual affiliate checkout link
+            if (productId) {
+                const userId = sessionStorage.getItem('user_id') || 'GUEST';
+                let baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                if(baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                
+                const checkoutUrl = `${baseUrl}/checkout.html?id=${productId}&ref=${userId}`;
+                content = content.replace(/LINK_AFF/g, checkoutUrl);
+            }
+            
+            const filename = (slug || 'landing-page') + '.html';
+            const blob = new Blob([content], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('HTML berhasil diunduh!', 'success');
+        };
+
+        // Overwrite global function to use impl
+        window.downloadPageHTML = window.downloadPageHTML_impl;
+
+
+        // Modal Functions
+        function openPageModal() {
+            document.getElementById('form-page').reset();
+            document.getElementById('pg-is-edit').value = 'false';
+            document.getElementById('slug-feedback').textContent = '';
+            document.getElementById('slug-feedback').classList.add('hidden');
+            document.getElementById('modal-page').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        async function checkSlugAvailability(input) {
+            const slug = input.value.trim();
+            const feedback = document.getElementById('slug-feedback');
+            const btn = document.getElementById('form-page').querySelector('button[type="submit"]');
+            
+            if (!slug) {
+                feedback.classList.add('hidden');
+                btn.disabled = false;
+                return;
+            }
+
+            feedback.textContent = 'Memeriksa ketersediaan...';
+            feedback.className = 'text-xs font-medium mt-2 text-slate-400 block';
+            btn.disabled = true;
+
+            try {
+                const id = document.getElementById('pg-id').value; // For edit mode exclude
+                const isEdit = document.getElementById('pg-is-edit').value === 'true';
+                
+                const payload = { 
+                    action: 'check_slug', 
+                    slug: slug,
+                    exclude_id: isEdit ? id : ''
+                };
+
+                const res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const r = await res.json();
+
+                if (r.status === 'success' && r.available) {
+                    feedback.textContent = 'Slug URL tersedia ✅';
+                    feedback.className = 'text-xs font-medium mt-2 text-emerald-600 block';
+                    btn.disabled = false;
+                    btn.innerText = isEdit ? 'SIMPAN PERUBAHAN' : 'BUAT HALAMAN';
+                } else {
+                    feedback.textContent = 'Slug URL sudah digunakan ❌';
+                    feedback.className = 'text-xs font-medium mt-2 text-rose-600 block';
+                    btn.disabled = true; // Prevent submit
+                }
+            } catch (e) {
+                feedback.textContent = 'Gagal memeriksa slug';
+                feedback.className = 'text-xs font-medium mt-2 text-amber-600 block';
+                btn.disabled = false; // Let server handle it if check fails
+            }
+        }
+
+        function editPage(id) {
+            if (!window.myCachedPages) return;
+            const p = window.myCachedPages.find(x => x[0] === id);
+            if(!p) return;
+            
+            document.getElementById('slug-feedback').textContent = '';
+            document.getElementById('slug-feedback').classList.add('hidden');
+            
+            document.getElementById('pg-id').value = p[0];
+            document.getElementById('pg-slug').value = p[1];
+            document.getElementById('pg-title').value = p[2];
+            document.getElementById('pg-content').value = p[3];
+            
+            // Meta Pixel (Col 8, 9, 10 -> Index 7, 8, 9)
+            document.getElementById('pg-pixel-id').value = p[7] || '';
+            document.getElementById('pg-pixel-token').value = p[8] || '';
+            document.getElementById('pg-pixel-test').value = p[9] || '';
+            
+            // Theme Mode (Col 11 -> Index 10)
+            const theme = p[10] || 'light';
+            const themeRadio = document.querySelector(`input[name="pg-theme"][value="${theme}"]`);
+            if(themeRadio) themeRadio.checked = true;
+            
+            document.getElementById('pg-is-edit').value = 'true';
+            document.getElementById('modal-page').classList.remove('hidden');
+        }
+
+        // Helper Copy Link
+        function copyPageLink(slug) {
+            let baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            if(baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+            const url = `${baseUrl}/p.html?s=${slug}`;
+            navigator.clipboard.writeText(url);
+            showToast('Link halaman disalin!', 'success');
+        }
+
+        function deletePage(id) {
+            if(!confirm('Apakah Anda yakin ingin menghapus halaman ini? Tindakan ini tidak dapat dibatalkan.')) return;
+            
+            const userId = sessionStorage.getItem('user_id');
+            const btn = document.querySelector(`button[onclick="deletePage('${id}')"]`);
+            if(btn) btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+            lucide.createIcons();
+
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'delete_page', id: id, owner_id: userId })
+            })
+            .then(res => res.json())
+            .then(r => {
+                if(r.status === 'success') {
+                    try {
+                        if (r.cache_state && window.CEPAT_CACHE_STATE && typeof window.CEPAT_CACHE_STATE.sync === 'function') {
+                            window.CEPAT_CACHE_STATE.sync(r.cache_state, Date.now());
+                        }
+                    } catch (e) {}
+                    showToast('Halaman berhasil dihapus', 'success');
+                    loadMyPages();
+                } else {
+                    showToast(r.message || 'Gagal menghapus halaman', 'error');
+                    if(btn) {
+                        btn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
+                        lucide.createIcons();
+                    }
+                }
+            })
+            .catch(e => {
+                showToast('Gagal koneksi: ' + e.toString(), 'error');
+                if(btn) {
+                    btn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
+                    lucide.createIcons();
+                }
+            });
+        }
+
+        // Render User Pages
+        function renderMyPages(pages) {
+            window.myCachedPages = pages; // Cache for edit lookup
+            const container = document.getElementById('list-my-pages');
+            if(pages && pages.length > 0) {
+                container.innerHTML = pages.map(p => `
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="px-6 py-4">
+                            <p class="font-bold text-slate-800 text-sm">${p[2]}</p>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <code class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">${p[1]}</code>
+                                <button onclick="copyPageLink('${p[1]}')" class="text-slate-400 hover:text-indigo-600"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="editPage('${p[0]}')" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="downloadPageHTML('${p[1]}')" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Download HTML">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deletePage('${p[0]}')" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Hapus">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                container.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-slate-400 text-xs">Belum ada halaman yang dibuat.</td></tr>`;
+            }
+            lucide.createIcons();
+        }
+
+        // Fetch User Pages
+        async function loadMyPages() {
+            const container = document.getElementById('list-my-pages');
+            try {
+                const userId = sessionStorage.getItem('user_id');
+                console.log("Loading My Pages for User:", userId);
+                
+                if(!userId) {
+                    container.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-red-400 text-xs">Sesi berakhir. Silakan login ulang.</td></tr>`;
+                    return;
+                }
+
+                // Show loading state
+                container.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-slate-400 text-xs"><i data-lucide="loader" class="w-4 h-4 animate-spin inline mr-2"></i> Memuat halaman...</td></tr>`;
+                lucide.createIcons();
+
+                const payload = { action: 'get_pages', owner_id: userId, only_mine: true };
+                console.log("Payload:", payload);
+
+                const res = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    body: JSON.stringify(payload) 
+                });
+                const r = await res.json();
+                console.log("Response My Pages:", r);
+
+                if(r.status === 'success') {
+                    renderMyPages(r.data);
+                } else {
+                    console.error("Error response:", r);
+                    container.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-red-400 text-xs">Gagal memuat: ${r.message || 'Error'}</td></tr>`;
+                }
+            } catch(e) {
+                console.error("Failed to load my pages", e);
+                container.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-red-400 text-xs">Gagal koneksi server: ${e.toString()}</td></tr>`;
+            }
+        }
+
+        // Submit Form
+        document.getElementById('form-page').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            const oriText = btn.innerText;
+            btn.disabled = true;
+            btn.innerText = 'MENYIMPAN...';
+
+            try {
+                const userId = sessionStorage.getItem('user_id');
+                const p = { 
+                    action: 'save_page', 
+                    id: document.getElementById('pg-id').value, 
+                    slug: document.getElementById('pg-slug').value, 
+                    title: document.getElementById('pg-title').value, 
+                    content: document.getElementById('pg-content').value, 
+                    is_edit: document.getElementById('pg-is-edit').value === 'true',
+                    owner_id: userId, // Important: Link to user
+                    meta_pixel_id: document.getElementById('pg-pixel-id').value,
+                    meta_pixel_token: document.getElementById('pg-pixel-token').value,
+                    meta_pixel_test_event: document.getElementById('pg-pixel-test').value,
+                    theme_mode: document.querySelector('input[name="pg-theme"]:checked').value
+                };
+                
+                const res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(p)
+                });
+                const r = await res.json();
+                
+                if(r.status === 'success') {
+                    try {
+                        if (r.cache_state && window.CEPAT_CACHE_STATE && typeof window.CEPAT_CACHE_STATE.sync === 'function') {
+                            window.CEPAT_CACHE_STATE.sync(r.cache_state, Date.now());
+                        }
+                    } catch (e) {}
+                    showToast('Halaman berhasil disimpan!', 'success');
+                    closeModal('modal-page');
+                    loadMyPages(); // Reload list
+                } else {
+                    showToast(r.message || 'Gagal menyimpan halaman', 'error');
+                }
+            } catch(err) {
+                showToast('Terjadi kesalahan koneksi', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = oriText;
+            }
+        };
+
+        // Initial Load
+        // loadMyPages() dipanggil di window.onload
+    </script>
+    <!-- Product Pixel Modal -->
+    <div id="modal-product-pixel" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closePixelModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md p-4">
+            <div class="bg-white rounded-3xl shadow-2xl overflow-hidden fade-in-up">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <h3 class="font-bold text-lg text-slate-800">Konfigurasi Pixel</h3>
+                    <button onclick="closePixelModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-xs text-slate-500 mb-2">Atur Meta Pixel khusus untuk produk <span id="pixel-product-name" class="font-bold text-slate-800">...</span>. Pixel ini akan aktif saat orang mengunjungi link affiliate Anda.</p>
+                    <input type="hidden" id="pixel-product-id">
+                    
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pixel ID</label>
+                        <input type="text" id="pixel-id" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-mono text-xs text-slate-800 placeholder:text-slate-400" placeholder="Ex: 1234567890">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Access Token (Opsional)</label>
+                        <input type="text" id="pixel-token" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-mono text-xs text-slate-800 placeholder:text-slate-400" placeholder="Ex: EAA...">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Test Event Code (Opsional)</label>
+                        <input type="text" id="pixel-test" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all font-mono text-xs text-slate-800 placeholder:text-slate-400" placeholder="Ex: TEST1234">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                    <button onclick="closePixelModal()" class="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-colors">Batal</button>
+                    <button onclick="savePixelConfig()" id="btn-save-pixel" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2">
+                        Simpan Konfigurasi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openPixelModal(pId, pTitle) {
+            document.getElementById('pixel-product-id').value = pId;
+            document.getElementById('pixel-product-name').innerText = pTitle;
+            
+            // Clear inputs first
+            document.getElementById('pixel-id').value = '';
+            document.getElementById('pixel-token').value = '';
+            document.getElementById('pixel-test').value = '';
+
+            // Check if existing pixel data is in cache
+            if (window.currentAffiliatePixels) {
+                const existing = window.currentAffiliatePixels.find(x => String(x.product_id) === String(pId));
+                if (existing) {
+                    document.getElementById('pixel-id').value = existing.pixel_id || '';
+                    document.getElementById('pixel-token').value = existing.pixel_token || '';
+                    document.getElementById('pixel-test').value = existing.pixel_test_code || '';
+                }
+            }
+            
+            document.getElementById('modal-product-pixel').classList.remove('hidden');
+        }
+
+        function closePixelModal() {
+            document.getElementById('modal-product-pixel').classList.add('hidden');
+        }
+
+        async function savePixelConfig() {
+            const pId = document.getElementById('pixel-product-id').value;
+            const pixId = document.getElementById('pixel-id').value;
+            const pixToken = document.getElementById('pixel-token').value;
+            const pixTest = document.getElementById('pixel-test').value;
+            const btn = document.getElementById('btn-save-pixel');
+            const oriText = btn.innerHTML;
+
+            if(!pId) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Loading...';
+            lucide.createIcons();
+
+            try {
+                const res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'save_affiliate_pixel',
+                        email: userEmail,
+                        product_id: pId,
+                        pixel_id: pixId,
+                        pixel_token: pixToken,
+                        pixel_test_code: pixTest
+                    })
+                });
+                const r = await res.json();
+                
+                if(r.status === 'success') {
+                    showToast('Konfigurasi Pixel berhasil disimpan!', 'success');
+                    closePixelModal();
+                    
+                    // Update local cache manually
+                    if (!window.currentAffiliatePixels) window.currentAffiliatePixels = [];
+                    const idx = window.currentAffiliatePixels.findIndex(x => String(x.product_id) === String(pId));
+                    const newEntry = { product_id: pId, pixel_id: pixId, pixel_token: pixToken, pixel_test_code: pixTest };
+                    
+                    if (idx >= 0) {
+                        window.currentAffiliatePixels[idx] = newEntry;
+                    } else {
+                        window.currentAffiliatePixels.push(newEntry);
+                    }
+                    
+                    // Update button style
+                    const btnEl = document.querySelector(`button[data-pixel-btn="${pId}"]`);
+                    if(btnEl) {
+                        if(pixId) {
+                            btnEl.classList.remove('text-slate-400', 'hover:text-indigo-600', 'bg-white', 'border-slate-200');
+                            btnEl.classList.add('text-indigo-600', 'bg-indigo-50', 'border-indigo-200');
+                        } else {
+                            btnEl.classList.add('text-slate-400', 'hover:text-indigo-600', 'bg-white', 'border-slate-200');
+                            btnEl.classList.remove('text-indigo-600', 'bg-indigo-50', 'border-indigo-200');
+                        }
+                    }
+                } else {
+                    showToast(r.message || 'Gagal menyimpan konfigurasi', 'error');
+                }
+            } catch(e) {
+                showToast('Terjadi kesalahan koneksi', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = oriText;
+                lucide.createIcons();
+            }
+        }
+    </script>
+</body>
+</html>

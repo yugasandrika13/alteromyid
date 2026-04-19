@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://script.google.com">
+    <script src="site.config.js"></script>
+    <script src="config.js?v=2026_1"></script>
+
+    <script>
+        (function() {
+            const CACHE_KEY = 'cepat_global_settings';
+            const CACHE_AGE = 60 * 60 * 1000; 
+
+            function getStorage(kind) {
+                try {
+                    if (kind === 'local' && typeof window.localStorage !== 'undefined') return window.localStorage;
+                    if (kind === 'session' && typeof window.sessionStorage !== 'undefined') return window.sessionStorage;
+                } catch (e) {}
+                return null;
+            }
+
+            function storageGet(key, kind) {
+                try {
+                    const store = getStorage(kind || 'local');
+                    return store ? store.getItem(key) : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function storageSet(key, value, kind) {
+                try {
+                    const store = getStorage(kind || 'local');
+                    if (!store) return false;
+                    store.setItem(key, value);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            window.__CEPAT_STORAGE__ = window.__CEPAT_STORAGE__ || {
+                getStorage: getStorage,
+                getItem: storageGet,
+                setItem: storageSet
+            };
+
+            function syncGlobalSettingsCache(data, timestamp, version) {
+                if (!data) return;
+                const payload = { data: data, time: Number(timestamp || Date.now()), version: String(version || '') };
+                window.__CEPAT_STORAGE__.setItem(CACHE_KEY, JSON.stringify(payload));
+                if (window.__CEPAT_GLOBAL_SETTINGS__) {
+                    window.__CEPAT_GLOBAL_SETTINGS__.cached = payload;
+                    window.__CEPAT_GLOBAL_SETTINGS__.isFresh = true;
+                    window.__CEPAT_GLOBAL_SETTINGS__.version = payload.version;
+                }
+                applyGlobalSettings(data);
+            }
+
+            function applyGlobalSettings(data) {
+                // Eksekusi Cepat Favicon
+                if(data.site_favicon) {
+                    let link = document.querySelector("link[rel~='icon']");
+                    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+                    link.href = data.site_favicon;
+                }
+                
+                // Set Title default saat loading jika ada nama brand
+                if(data.site_name) {
+                    // Simpan nama brand ke window object agar bisa dipakai saat merender konten CMS
+                    window.brandNameGlobal = data.site_name; 
+                    if(document.title.includes('Cepat')) {
+                        document.title = document.title.replace(/Cepat/gi, data.site_name);
+                    }
+                }
+            }
+
+            const cachedStr = window.__CEPAT_STORAGE__.getItem(CACHE_KEY);
+            let cached = null;
+            try { cached = JSON.parse(cachedStr); } catch(e){}
+            const now = Date.now();
+
+            if (cached && cached.data) {
+                applyGlobalSettings(cached.data);
+            }
+            window.__CEPAT_GLOBAL_SETTINGS__ = {
+                key: CACHE_KEY,
+                maxAge: CACHE_AGE,
+                cached: cached,
+                isFresh: !!(cached && cached.time && (now - cached.time <= CACHE_AGE)),
+                version: String((cached && cached.version) || ''),
+                apply: applyGlobalSettings,
+                sync: syncGlobalSettingsCache
+            };
+        })();
+    </script>
+    <title>Memuat Halaman... - Cepat</title>
+    <link rel="preload" as="style" href="tailwind.css?v=2026_1">
+    <link rel="stylesheet" href="tailwind.css?v=2026_1">
+    <script defer src="assets/vendor/lucide.min.js?v=0.577.0"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; opacity: 0; }
+        .cms-back-button {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 60;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.625rem;
+            padding: 0.75rem 1rem;
+            border-radius: 999px;
+            border: 1px solid rgba(226, 232, 240, 0.95);
+            background: rgba(255, 255, 255, 0.94);
+            color: #0f172a;
+            font-size: 0.875rem;
+            font-weight: 800;
+            text-decoration: none;
+            letter-spacing: 0.01em;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+            backdrop-filter: blur(14px);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+        }
+        .cms-back-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 22px 50px rgba(15, 23, 42, 0.2);
+        }
+        .cms-back-button:focus-visible {
+            outline: 3px solid rgba(99, 102, 241, 0.5);
+            outline-offset: 3px;
+        }
+        .cms-back-button svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        body.cms-theme-dark .cms-back-button {
+            border-color: rgba(148, 163, 184, 0.24);
+            background: rgba(15, 23, 42, 0.82);
+            color: #e2e8f0;
+            box-shadow: 0 18px 45px rgba(2, 6, 23, 0.38);
+        }
+        @media (max-width: 640px) {
+            .cms-back-button {
+                top: 0.75rem;
+                left: 0.75rem;
+                padding: 0.6875rem 0.95rem;
+            }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-white text-slate-800 min-h-screen flex flex-col m-0 p-0 relative cms-theme-light">
+
+
+    <a id="cms-back-button" href="/" class="cms-back-button" aria-label="Kembali ke halaman sebelumnya">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6"></path>
+            <path d="M21 12H9"></path>
+        </svg>
+        <span>Kembali</span>
+    </a>
+
+
+    <div id="loader" class="flex-1 flex flex-col items-center justify-center min-h-screen bg-[#f8f9fa]">
+        <div class="animate-spin w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
+        <p class="text-slate-400 font-bold uppercase tracking-widest text-xs animate-pulse">Menyiapkan Tampilan...</p>
+    </div>
+    
+    <div id="page-content" class="hidden w-full flex-1 fade-in"></div>
+
+    <script>
+        // SCRIPT_URL sudah ditarik dari config.js
+        const urlParams = new URLSearchParams(window.location.search);
+        const slug = urlParams.get('s');
+        const PAGE_CACHE_AGE = 5 * 60 * 1000;
+        const storage = window.__CEPAT_STORAGE__ || {
+            getItem: () => null,
+            setItem: () => false
+        };
+
+        // Capture Affiliate Ref
+        const ref = urlParams.get('ref') || urlParams.get('aff_id');
+        if(ref) {
+            storage.setItem('cepat_affiliate', ref);
+        }
+
+        function bindBackButton() {
+            const button = document.getElementById('cms-back-button');
+            if (!button || button.dataset.bound === 'true') return;
+            button.dataset.bound = 'true';
+            button.addEventListener('click', function (event) {
+                if (window.history.length > 1) {
+                    event.preventDefault();
+                    window.history.back();
+                }
+            });
+        }
+
+        function initLucideIcons(root) {
+            if (!window.lucide || typeof window.lucide.createIcons !== 'function') return;
+            try {
+                if (root) window.lucide.createIcons({ root: root });
+                else window.lucide.createIcons();
+            } catch (e) {
+                console.warn('Lucide icon init skipped:', e);
+            }
+        }
+
+        function makeReadyEvent(type) {
+            try {
+                return new Event(type);
+            } catch (e) {
+                const legacyEvent = document.createEvent('Event');
+                legacyEvent.initEvent(type, true, true);
+                return legacyEvent;
+            }
+        }
+
+        function queueReadyListener(listener, type, context) {
+            const readyEvent = makeReadyEvent(type);
+            window.setTimeout(() => {
+                try {
+                    if (typeof listener === 'function') {
+                        listener.call(context || document, readyEvent);
+                    } else if (listener && typeof listener.handleEvent === 'function') {
+                        listener.handleEvent(readyEvent);
+                    }
+                } catch (e) {
+                    console.error('Content ready listener error:', e);
+                }
+            }, 0);
+        }
+
+        function withReadyListenerBridge(runScript) {
+            const originalDocumentAddEventListener = document.addEventListener;
+            const originalWindowAddEventListener = window.addEventListener;
+
+            document.addEventListener = function (type, listener, options) {
+                if ((type === 'DOMContentLoaded' || type === 'load') && document.readyState !== 'loading') {
+                    queueReadyListener(listener, type, document);
+                    return;
+                }
+                return originalDocumentAddEventListener.call(document, type, listener, options);
+            };
+
+            window.addEventListener = function (type, listener, options) {
+                if (type === 'load' && document.readyState !== 'loading') {
+                    queueReadyListener(listener, type, window);
+                    return;
+                }
+                return originalWindowAddEventListener.call(window, type, listener, options);
+            };
+
+            try {
+                return runScript();
+            } finally {
+                document.addEventListener = originalDocumentAddEventListener;
+                window.addEventListener = originalWindowAddEventListener;
+            }
+        }
+
+        async function appendExternalScript(sourceScript) {
+            await new Promise((resolve) => {
+                const s = document.createElement('script');
+                s.src = sourceScript.src;
+                if (sourceScript.type) s.type = sourceScript.type;
+                if (sourceScript.noModule) s.noModule = true;
+                if (sourceScript.referrerPolicy) s.referrerPolicy = sourceScript.referrerPolicy;
+                if (sourceScript.crossOrigin) s.crossOrigin = sourceScript.crossOrigin;
+                s.async = false;
+                s.onload = resolve;
+                s.onerror = resolve;
+                document.body.appendChild(s);
+            });
+        }
+
+        async function executeEmbeddedScripts(container) {
+            const scripts = Array.from(container.getElementsByTagName('script'));
+            for (const embeddedScript of scripts) {
+                const type = (embeddedScript.getAttribute('type') || 'text/javascript').trim();
+                if (type && type !== 'text/javascript' && type !== 'application/javascript' && type !== 'module') continue;
+
+                try {
+                    if (embeddedScript.src) {
+                        await appendExternalScript(embeddedScript);
+                    } else {
+                        withReadyListenerBridge(() => {
+                            new Function(embeddedScript.innerHTML)();
+                        });
+                    }
+                } catch(e) {
+                    console.error("Custom Script Error:", e);
+                }
+            }
+        }
+
+        function injectMetaPixel(pixelId) {
+            if(!pixelId) return;
+            if(window.fbq) return; // Prevent double injection
+
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            
+            fbq('init', pixelId);
+            fbq('track', 'PageView');
+
+            // Noscript fallback
+            const ns = document.createElement('noscript');
+            const img = document.createElement('img');
+            img.height = 1;
+            img.width = 1;
+            img.style.display = 'none';
+            img.src = `https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1`;
+            ns.appendChild(img);
+            document.body.appendChild(ns);
+        }
+
+        async function renderHTML(data) {
+            // Gunakan brandNameGlobal jika ada, kalau tidak fallback ke string kosong
+            const brandSufix = window.brandNameGlobal ? ` - ${window.brandNameGlobal}` : '';
+            document.title = data.title + brandSufix;
+            
+            // Inject Pixel jika ada
+            if(data.pixel_id) {
+                injectMetaPixel(data.pixel_id);
+            }
+
+            document.getElementById('loader').style.display = 'none';
+            const container = document.getElementById('page-content');
+            
+            // Fix: Pastikan konten di-set sebelum menghapus hidden agar layout stabil
+            container.innerHTML = data.content; 
+            container.classList.remove('hidden');
+            
+            // Apply Theme Mode
+            if (data.theme_mode === 'dark') {
+                document.body.classList.remove('bg-white', 'text-slate-800');
+                document.body.classList.remove('cms-theme-light');
+                document.body.classList.add('bg-slate-900', 'text-slate-100');
+                document.body.classList.add('cms-theme-dark');
+            } else {
+                // Default Light
+                document.body.classList.remove('bg-slate-900', 'text-slate-100');
+                document.body.classList.remove('cms-theme-dark');
+                document.body.classList.add('bg-white', 'text-slate-800');
+                document.body.classList.add('cms-theme-light');
+            }
+            
+            // Re-init Icons
+            initLucideIcons(container);
+            await executeEmbeddedScripts(container);
+            initLucideIcons(container);
+        }
+
+        // --> FUNGSI LOADING SAT SET (Optimistic UI & Background Sync)
+        async function loadPage() {
+            if(!slug) { 
+                document.getElementById('loader').innerHTML = '<p class="text-red-500 font-bold text-center mt-20">Error: Halaman tidak ditemukan.</p>'; 
+                return; 
+            }
+            
+            const cacheKey = 'cepat_page_' + slug;
+            const cachedRaw = storage.getItem(cacheKey);
+            const globalCache = window.__CEPAT_GLOBAL_SETTINGS__ || {};
+            let cachedData = null;
+            let cachedAt = 0;
+            let cachedPageVersion = '';
+            try {
+                const parsed = cachedRaw ? JSON.parse(cachedRaw) : null;
+                if (parsed && typeof parsed === 'object' && parsed.data) {
+                    cachedData = parsed.data;
+                    cachedAt = Number(parsed.time || 0);
+                    cachedPageVersion = String(parsed.version || '');
+                } else if (parsed && typeof parsed === 'object') {
+                    cachedData = parsed;
+                }
+            } catch (e) { cachedData = null; }
+            
+            // JIKA ADA CACHE: Tampilkan landing page seketika (0 detik)
+            if (cachedData) {
+                await renderHTML(cachedData);
+            }
+
+            const isPageStale = !cachedAt || ((Date.now() - cachedAt) > PAGE_CACHE_AGE);
+            const isSettingsStale = !globalCache.isFresh;
+
+            // Pengecekan data terbaru di belakang layar
+            try {
+                if(typeof SCRIPT_URL === 'undefined') throw new Error("config.js tidak ditemukan");
+                const cacheState = (window.CEPAT_CACHE_STATE && typeof window.CEPAT_CACHE_STATE.ensureFresh === 'function')
+                    ? await window.CEPAT_CACHE_STATE.ensureFresh()
+                    : null;
+                const currentPageVersion = String((cacheState && cacheState.pages) || '');
+                const currentSettingsVersion = String((cacheState && cacheState.settings) || '');
+
+                const isPageVersionStale = !!currentPageVersion && cachedPageVersion !== currentPageVersion;
+                const cachedSettingsVersion = String((globalCache.cached && globalCache.cached.version) || '');
+                const isSettingsVersionStale = !!currentSettingsVersion && cachedSettingsVersion !== currentSettingsVersion;
+                const requests = [];
+                const requestMap = {};
+                if (isSettingsStale || isSettingsVersionStale) {
+                    requestMap.settings = requests.push({ action: 'get_global_settings', cache_version: currentSettingsVersion }) - 1;
+                }
+                if (!cachedData || isPageStale || isPageVersionStale) {
+                    requestMap.page = requests.push({ action: 'get_page_content', slug: slug, cache_version: currentPageVersion }) - 1;
+                }
+                if (cachedData && !isPageStale && !isPageVersionStale && !(isSettingsStale || isSettingsVersionStale)) return;
+                if (!requests.length) return;
+
+                const batch = (window.CEPAT_API && typeof window.CEPAT_API.batch === 'function')
+                    ? await window.CEPAT_API.batch(requests)
+                    : { status: 'error', results: [] };
+                const results = Array.isArray(batch.results) ? batch.results : [];
+
+                if (requestMap.settings !== undefined) {
+                    const settingsResult = results[requestMap.settings];
+                    if (settingsResult && settingsResult.data && settingsResult.data.status === 'success') {
+                        const settingsData = settingsResult.data.data;
+                        const nextSettingsVersion = String((settingsResult.data && settingsResult.data.cache_version) || currentSettingsVersion || '');
+                        if (typeof globalCache.sync === 'function') globalCache.sync(settingsData, Date.now(), nextSettingsVersion);
+                        else if (typeof globalCache.apply === 'function') globalCache.apply(settingsData);
+                    }
+                }
+
+                if (requestMap.page !== undefined) {
+                    const pageResult = results[requestMap.page];
+                    const r = pageResult && pageResult.data ? pageResult.data : null;
+                    if (r && r.status === 'success') {
+                        const freshData = JSON.stringify(r);
+                        const previousData = cachedData ? JSON.stringify(cachedData) : '';
+                        const nextPageVersion = String((r && r.cache_version) || currentPageVersion || '');
+                        if (previousData !== freshData) {
+                            storage.setItem(cacheKey, JSON.stringify({ data: r, time: Date.now(), version: nextPageVersion }));
+                            await renderHTML(r);
+                        } else if (cachedAt !== 0) {
+                            storage.setItem(cacheKey, JSON.stringify({ data: cachedData, time: Date.now(), version: nextPageVersion || cachedPageVersion }));
+                        }
+                    } else if (!cachedData) {
+                        document.getElementById('loader').innerHTML = `<p class="text-red-500 font-bold text-center mt-20">${(r && r.message) || 'Halaman tidak ditemukan.'}</p>`;
+                    }
+                }
+            } catch (e) {
+                if (!cachedData) {
+                    document.getElementById('loader').innerHTML = '<p class="text-red-500 font-bold text-center mt-20">Gagal terhubung ke server.</p>';
+                }
+            }
+        }
+        
+        bindBackButton();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initLucideIcons();
+                loadPage();
+            }, { once: true });
+        } else {
+            initLucideIcons();
+            loadPage();
+        }
+    </script>
+</body>
+</html>

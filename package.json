@@ -1,0 +1,35 @@
+{
+  "name": "cepaticu3-installer",
+  "private": true,
+  "description": "Distribution-ready installer package for CepatIcu3",
+  "scripts": {
+    "setup": "node setup.js",
+    "validate": "node validate-config.js",
+    "validate:seo": "node validate-seo.js",
+    "audit:worker": "node worker-budget-audit.js",
+    "build:pages": "node scripts/prepare-pages.js",
+    "test": "jest --runInBand",
+    "test:forgot": "jest --runInBand tests/admin-forgot-password.test.js",
+    "test:forgot:cross-browser": "node tests/cross-browser-forgot-password.js",
+    "sync:installer": "node scripts/sync-installer.js",
+    "build:installer": "node scripts/sync-installer.js",
+    "validate:installer": "node scripts/sync-installer.js --validate-only",
+    "sync:installer:watch": "node scripts/sync-installer.js --watch",
+    "prepare:installer": "node scripts/sync-installer.js",
+    "sync:installer:start": "node scripts/sync-installer.js --daemon",
+    "sync:installer:stop": "node scripts/sync-installer.js --stop",
+    "sync:installer:status": "node scripts/sync-installer.js --status",
+    "postinstall": "node scripts/sync-installer.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "playwright": "^1.58.2"
+  },
+  "jest": {
+    "modulePathIgnorePatterns": [
+      "<rootDir>/installer/"
+    ]
+  }
+}

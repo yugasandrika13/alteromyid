@@ -1,0 +1,6 @@
+LICENSE STATUS
+
+Project sumber belum memiliki file LICENSE resmi.
+Untuk paket installer ini, gunakan hanya untuk distribusi internal/tim sampai lisensi final ditetapkan oleh pemilik project.
+
+Jika tim sudah menentukan lisensi resmi, gantikan file ini pada proses build berikutnya.

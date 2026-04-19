@@ -1,0 +1,40 @@
+# ============================================
+# Cloudflare Security Headers
+# ============================================
+
+# --- GLOBAL SECURITY HEADERS ---
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# --- FORCE CORRECT MIME TYPE FOR JS FILES ---
+/tailwind.css
+  Content-Type: text/css; charset=utf-8
+  Cache-Control: public, max-age=31536000, immutable
+
+/site.config.js
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/config.js
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.html
+  Cache-Control: public, max-age=60, stale-while-revalidate=600
+
+# --- BLOCK SENSITIVE FILES FROM INDEXING ---
+/appscript.js
+  X-Robots-Tag: noindex, nofollow
+
+/load_test.js
+  X-Robots-Tag: noindex, nofollow
+
+/AUDIT_REPORT.md
+  X-Robots-Tag: noindex, nofollow
+
+/SECURITY.md
+  X-Robots-Tag: noindex, nofollow

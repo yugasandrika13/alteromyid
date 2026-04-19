@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-03-24T00:00:00.000Z",
+  "outputDir": "installer",
+  "includedFiles": [
+    "404.html",
+    "LICENSE.txt",
+    "README.md",
+    "_headers",
+    "_redirects",
+    "_worker.js",
+    "admin-area.html",
+    "admin-orders.html",
+    "akses.html",
+    "appscript.js",
+    "checkout.html",
+    "config.js",
+    "dashboard.html",
+    "index.html",
+    "login.html",
+    "manifest.json",
+    "p.html",
+    "package-lock.json",
+    "package.json",
+    "setup.js",
+    "site.config.js",
+    "tailwind.css",
+    "validate-config.js",
+    "wrangler.jsonc"
+  ],
+  "includeDirectories": [
+    "assets"
+  ],
+  "runtimeDependencies": [],
+  "requiredRuntimeFiles": [
+    "_worker.js",
+    "appscript.js",
+    "config.js",
+    "index.html",
+    "wrangler.jsonc",
+    "site.config.js",
+    "README.md",
+    "LICENSE.txt"
+  ],
+  "optionalEntries": [],
+  "postBuildValidation": {
+    "requiredNodeScripts": [
+      "validate-config.js"
+    ]
+  },
+  "excludedCategories": [
+    "development tests",
+    "build tools",
+    "internal docs",
+    "environment files",
+    "raw local-only reference files"
+  ],
+  "notes": [
+    "No standalone binaries or DLL files exist in this project, so none are copied.",
+    "No local runtime node_modules are required for production runtime in this project.",
+    "appscript.js is intentionally included because it is a deployable Apps Script runtime artifact."
+  ]
+}

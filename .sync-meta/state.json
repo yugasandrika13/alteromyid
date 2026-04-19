@@ -1,0 +1,137 @@
+{
+  "generated_at": "2026-03-24T11:31:43.751Z",
+  "mode": "manifest-driven",
+  "output_dir": "installer",
+  "files": {
+    "404.html": {
+      "hash": "f243ab6ef56fed928e14e52adcb3ca337b816728",
+      "size": 2478,
+      "mtimeMs": 1773864547106.8823
+    },
+    "LICENSE.txt": {
+      "hash": "0418cc80a769a1536630150ac57eb824284d1268",
+      "size": 280,
+      "mtimeMs": 1773834508000
+    },
+    "README.md": {
+      "hash": "7cecfeb42c3499336713bead8c60529e67fa18ec",
+      "size": 11660,
+      "mtimeMs": 1774351771982.0117
+    },
+    "_headers": {
+      "hash": "a5090dd9b3536211792dc0b44ac45174c3b8d46d",
+      "size": 1103,
+      "mtimeMs": 1773848264288.5396
+    },
+    "_redirects": {
+      "hash": "7f9d77daa378ff7e62104871dc931c402c80bd2a",
+      "size": 136,
+      "mtimeMs": 1773799128000
+    },
+    "_worker.js": {
+      "hash": "70b5d0f67a033039a58d528df990ca3092ab8815",
+      "size": 41807,
+      "mtimeMs": 1774339352182.729
+    },
+    "admin-area.html": {
+      "hash": "6af2d539cac180ccc732a7509f490e5da4a67443",
+      "size": 178669,
+      "mtimeMs": 1774342478030.9785
+    },
+    "admin-orders.html": {
+      "hash": "7a14ad849d326a3224d8228ce0170b4c4d51fd2c",
+      "size": 27755,
+      "mtimeMs": 1774139943179.3816
+    },
+    "akses.html": {
+      "hash": "6faf83be762865b4425ed8154320bf5df8f2869d",
+      "size": 15109,
+      "mtimeMs": 1774083920012.8672
+    },
+    "appscript.js": {
+      "hash": "c588f5ba370a19e890719bf881c4616087e201cb",
+      "size": 145462,
+      "mtimeMs": 1774339122334.0269
+    },
+    "assets/seo/og-default.png": {
+      "hash": "09a997609f265f2c23b86d8840a4d88086b742db",
+      "size": 133235,
+      "mtimeMs": 1773887565028.4446
+    },
+    "assets/vendor/lucide.min.js": {
+      "hash": "75d385d63c54b2ad7d9ba1d132d65ead02b59b5b",
+      "size": 398037,
+      "mtimeMs": 1774083780681.7651
+    },
+    "checkout.html": {
+      "hash": "843ae7a8c27668849cee4c77a8a7fec656b1f107",
+      "size": 56388,
+      "mtimeMs": 1774086704675.2705
+    },
+    "config.js": {
+      "hash": "1a32fc5866197df86bf302d5f690751951a8054f",
+      "size": 29996,
+      "mtimeMs": 1774086642616.5747
+    },
+    "dashboard.html": {
+      "hash": "7e983fbd235e9a5bf86bfe445361ab91c325b9ee",
+      "size": 114747,
+      "mtimeMs": 1774087079337.0332
+    },
+    "index.html": {
+      "hash": "54bc0b0afea51557ec418a660431235ec0bfead8",
+      "size": 53262,
+      "mtimeMs": 1774087675726.2947
+    },
+    "login.html": {
+      "hash": "2d120f06323a708e84698264a68e33d681e707e0",
+      "size": 19285,
+      "mtimeMs": 1774086808006.3728
+    },
+    "manifest.json": {
+      "hash": "e6e45f55b45517f3b85860fb9dbc019c0c2b408a",
+      "size": 1404,
+      "mtimeMs": 1774351680633.2517
+    },
+    "p.html": {
+      "hash": "4a5131414f6862c0b0b4fbbbf0e096c0411c9f9e",
+      "size": 21375,
+      "mtimeMs": 1774086737253.193
+    },
+    "package-lock.json": {
+      "hash": "a40cfe3ac22bd2f7d7951311a1e043a13ee28d92",
+      "size": 161741,
+      "mtimeMs": 1774341865244.3328
+    },
+    "package.json": {
+      "hash": "713ae4432e796c0cdcec6895048cb40bff7d6f24",
+      "size": 1310,
+      "mtimeMs": 1774351874741.7942
+    },
+    "setup.js": {
+      "hash": "f4ad866529f2a3a1d5e0cabdbd586a99fd5b2ba7",
+      "size": 9917,
+      "mtimeMs": 1773745014000
+    },
+    "site.config.js": {
+      "hash": "240b8e678a7dc3262d24164ab3ca3b6804cc1991",
+      "size": 1378,
+      "mtimeMs": 1774103157744.1887
+    },
+    "tailwind.css": {
+      "hash": "a061e6137cc26fb4ed458c61deb244a7423da610",
+      "size": 75622,
+      "mtimeMs": 1773795446000
+    },
+    "validate-config.js": {
+      "hash": "43d7cedab025a449912c1c557e268341023afc07",
+      "size": 6829,
+      "mtimeMs": 1773745232000
+    },
+    "wrangler.jsonc": {
+      "hash": "a0ef7dba7837371714d5da3f01f060171ca205b3",
+      "size": 1228,
+      "mtimeMs": 1774344463386.7793
+    }
+  }
+}
