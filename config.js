@@ -166,8 +166,8 @@
                 var _pendingReq = new Map();
                 var _cachePrefix = 'cepat_api_cache_v3::';
                 var _actionMeta = {
-                    get_public_cache_state: { ttl: 5 * 1000, storage: 'local' },
-                    get_global_settings: { ttl: 3600 * 1000, storage: 'local' },
+                    get_public_cache_state: { ttl: 0, storage: 'memory' }, // 0 TTL and memory only for faster invalidation
+                    get_global_settings: { ttl: 600 * 1000, storage: 'local' }, // Reduced to 10 mins, but versioning will still bypass this
                     get_products: { ttl: 60 * 1000, storage: 'local' },
                     get_product: { ttl: 60 * 1000, storage: 'local' },
                     get_page_content: { ttl: 60 * 1000, storage: 'local' },
@@ -381,7 +381,15 @@
                         var lastStatus = 0;
 
                         // FORCE RE-VALIDATE CACHE if user requested hard refresh or we suspect lag
-                        var isManualCheck = (init && init.headers && init.headers['X-Manual-Check'] === 'true');
+                        var isReload = false;
+                        try {
+                            if (window.performance && window.performance.getEntriesByType) {
+                                var nav = window.performance.getEntriesByType('navigation')[0];
+                                if (nav && nav.type === 'reload') isReload = true;
+                            }
+                        } catch(e) {}
+
+                        var isManualCheck = (init && init.headers && init.headers['X-Manual-Check'] === 'true') || isReload;
 
                         for (var attempt = 1; attempt <= maxAttempts; attempt++) {
                             try {
@@ -440,6 +448,16 @@
                             var method = (init && init.method ? String(init.method) : (input && input.method ? String(input.method) : 'GET')).toUpperCase();
                             var action = _parseAction(init);
                             
+                            // DETECT RELOAD / MANUAL CHECK
+                            var isReload = false;
+                            try {
+                                if (window.performance && window.performance.getEntriesByType) {
+                                    var nav = window.performance.getEntriesByType('navigation')[0];
+                                    if (nav && nav.type === 'reload') isReload = true;
+                                }
+                            } catch(e) {}
+                            var isManualCheck = (init && init.headers && (init.headers['X-Manual-Check'] === 'true' || init.headers['Cache-Control'] === 'no-cache')) || isReload;
+
                             // CACHE VERSIONING: Append cache_version to body if not present for get_ actions
                             if (method === 'POST' && _isCacheableAction(action) && init && init.body) {
                                 try {
@@ -453,16 +471,20 @@
 
                             if (method === 'POST' && _isCacheableAction(action)) {
                                 var k = _cacheKey(url, init);
-                                var hit = _cacheGet(k);
-                                if (hit) {
-                                    _markStat('memory_cache_hits', action);
-                                    return Promise.resolve(_toResponse(hit));
-                                }
-                                var storageHit = _storageGet(action, url, init);
-                                if (storageHit) {
-                                    _cacheSet(k, Number(_actionTtl[action] || 0), storageHit);
-                                    _markStat('storage_cache_hits', action);
-                                    return Promise.resolve(_toResponse(storageHit));
+                                if (!isManualCheck) {
+                                    var hit = _cacheGet(k);
+                                    if (hit) {
+                                        _markStat('memory_cache_hits', action);
+                                        return Promise.resolve(_toResponse(hit));
+                                    }
+                                    var storageHit = _storageGet(action, url, init);
+                                    if (storageHit) {
+                                        _cacheSet(k, Number(_actionTtl[action] || 0), storageHit);
+                                        _markStat('storage_cache_hits', action);
+                                        return Promise.resolve(_toResponse(storageHit));
+                                    }
+                                } else {
+                                    console.log('[Fetch] Bypassing cache for ' + action + ' due to manual/reload check');
                                 }
                                 if (_pendingReq.has(k)) {
                                     _markStat('deduped_requests', action);

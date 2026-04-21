@@ -883,8 +883,8 @@ async function tryGetCacheMeta(bodyText) {
 
 function getApiCacheTtls(env) {
   const defaults = {
-    get_public_cache_state: 5,
-    get_global_settings: 300,
+    get_public_cache_state: 0, // Disable edge cache for state to ensure instant invalidation
+    get_global_settings: 30,   // Reduce from 300 to 30 for faster settings updates
     get_products: 60,
     get_product: 60,
     get_page_content: 60,
