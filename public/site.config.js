@@ -14,17 +14,17 @@
  */
 var SITE_CONFIG = {
     // ── Domain Utama (Production) ──────────────────────────
-    PRIMARY_DOMAIN: 'cepat.icu',
+    PRIMARY_DOMAIN: 'altero.my.id',
 
     // ── Daftar Domain yang Diizinkan ───────────────────────
     ALLOWED_DOMAINS: [
-        'cepat.icu',
-        'www.cepat.icu'
+        'altero.my.id',
+        'www.altero.my.id'
     ],
 
     // ── Pattern Subdomain yang Diizinkan ───────────────────
     ALLOWED_SUBDOMAIN_SUFFIXES: [
-        '.cepat.icu'
+        '.altero.my.id'
     ],
 
     // ── Cloudflare Pages Preview ───────────────────────────
