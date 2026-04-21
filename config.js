@@ -349,8 +349,9 @@
                     } catch (e) { }
                 };
                 var _calcDelay = function (attempt) {
-                    var base = Math.min(8000, 250 * Math.pow(2, attempt - 1));
-                    var jitter = Math.round(base * (0.6 + Math.random() * 0.8));
+                    // Exponential backoff with jitter: 500ms, 1000ms, 2000ms, 4000ms... up to 10s
+                    var base = Math.min(10000, 500 * Math.pow(2, attempt - 1));
+                    var jitter = Math.round(base * (0.8 + Math.random() * 0.4));
                     return jitter;
                 };
                 var _fetchWithTimeout = async function (input, init, timeoutMs) {
@@ -360,7 +361,10 @@
                     if (!opts.signal && typeof AbortController !== 'undefined') {
                         controller = new AbortController();
                         opts.signal = controller.signal;
-                        timeoutId = setTimeout(function () { controller.abort(); }, timeoutMs);
+                        timeoutId = setTimeout(function () { 
+                            controller.abort(); 
+                            console.warn('[Fetch] Request timeout after ' + timeoutMs + 'ms');
+                        }, timeoutMs);
                     }
                     try {
                         return await _nativeFetch(input, opts);
@@ -372,30 +376,59 @@
                     var url = _getUrl(input);
                     var canRetry = _isRetryableRequest(input, init);
                     var maxAttempts = canRetry ? 4 : 1;
-                    var timeoutMs = 20000;
+                    var timeoutMs = 30000; // Increased to 30s to match worker
                     var lastErr = null;
+                    var lastStatus = 0;
+
                     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
                         try {
                             var res = await _fetchWithTimeout(input, init, timeoutMs);
-                            if (res && (!res.ok) && canRetry && _isRetryableStatus(res.status) && attempt < maxAttempts) {
-                                _markStat('retry_replays', _parseAction(init));
-                                await _sleep(_calcDelay(attempt));
-                                continue;
+                            if (res) {
+                                if (res.ok) return res;
+                                lastStatus = res.status;
+                                if (canRetry && _isRetryableStatus(res.status) && attempt < maxAttempts) {
+                                    console.log('[Fetch] Retry attempt ' + attempt + ' for status ' + res.status);
+                                    _markStat('retry_replays', _parseAction(init));
+                                    await _sleep(_calcDelay(attempt));
+                                    continue;
+                                }
+                                return res;
                             }
-                            return res;
                         } catch (err) {
                             lastErr = err;
+                            var isAbort = (err && err.name === 'AbortError');
                             if (canRetry && attempt < maxAttempts) {
+                                console.log('[Fetch] Retry attempt ' + attempt + ' due to ' + (isAbort ? 'Timeout' : 'Network Error'));
                                 _markStat('retry_replays', _parseAction(init));
                                 await _sleep(_calcDelay(attempt));
                                 continue;
                             }
-                            var e = new Error('Backend unreachable: ' + (url || '(unknown url)') + ' :: ' + String(lastErr || err));
+                            
+                            // FALLBACK MECHANISM: If /api fails and we have window.GAS_URL, try direct as last resort
+                            if (url === '/api' && window.GAS_URL && window.GAS_URL !== '/api') {
+                                console.warn('[Fetch] /api failed, attempting direct fallback to GAS_URL');
+                                try {
+                                    return await _fetchWithTimeout(window.GAS_URL, init, 35000);
+                                } catch (fallbackErr) {
+                                    console.error('[Fetch] Direct fallback also failed', fallbackErr);
+                                }
+                            }
+
+                            var e = new Error('Backend unreachable (' + (isAbort ? 'Timeout' : 'Error') + '): ' + (url || '(unknown url)') + ' :: ' + String(lastErr || err));
                             e.cause = lastErr || err;
                             throw e;
                         }
                     }
-                    throw lastErr || new Error('Backend unreachable: ' + (url || '(unknown url)'));
+                    
+                    // Final fallback if all retries resulted in bad status
+                    if (url === '/api' && window.GAS_URL && window.GAS_URL !== '/api' && _isRetryableStatus(lastStatus)) {
+                        console.warn('[Fetch] /api returned ' + lastStatus + ', attempting direct fallback to GAS_URL');
+                        try {
+                            return await _fetchWithTimeout(window.GAS_URL, init, 35000);
+                        } catch (e) {}
+                    }
+
+                    throw lastErr || new Error('Backend unreachable: ' + (url || '(unknown url)') + ' (Status: ' + lastStatus + ')');
                 };
                 window.__CEPAT_FETCH_WRAPPED__ = true;
                 window.fetch = function (input, init) {

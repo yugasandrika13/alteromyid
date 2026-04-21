@@ -431,11 +431,11 @@ async function handleApi(request, env, ctx) {
           const upstream = await fetchWithRetry(
             gasUrl,
             { method: 'POST', headers: { 'Content-Type': contentType }, body },
-            { maxAttempts: 4, timeoutMs: 25000 }
+            { maxAttempts: 4, timeoutMs: 30000 }
           );
           const res = await normalizeApiUpstreamResponse(upstream, request, env, requestId);
           if (res.status >= 500) {
-            recordApiCircuitFailure('Upstream status ' + res.status, env);
+            recordApiCircuitFailure('Upstream status ' + res.status + ' for action ' + (cacheMeta?.action || 'unknown'), env);
             if (staleCandidate && staleCandidate.stale) {
               inc('api_stale_served');
               return withMetricHeaders(staleCandidate.response, { 'x-api-cache': 'STALE', 'x-api-fallback': 'ERROR' });
@@ -450,7 +450,8 @@ async function handleApi(request, env, ctx) {
           }
           return withMetricHeaders(res, { 'x-api-cache': 'MISS' });
         } catch (error) {
-          recordApiCircuitFailure(error, env);
+          const errMsg = String(error.message || error);
+          recordApiCircuitFailure('Network/Timeout: ' + errMsg, env);
           if (staleCandidate && staleCandidate.stale) {
             inc('api_stale_served');
             return withMetricHeaders(staleCandidate.response, { 'x-api-cache': 'STALE', 'x-api-fallback': 'EXCEPTION' });
@@ -484,21 +485,28 @@ async function handleApi(request, env, ctx) {
     const upstream = await fetchWithRetry(
       gasUrl,
       { method: 'POST', headers: { 'Content-Type': contentType }, body },
-      { maxAttempts: 4, timeoutMs: 25000 }
+      { maxAttempts: 4, timeoutMs: 30000 }
     );
 
     const normalized = await normalizeApiUpstreamResponse(upstream, request, env, requestId);
-    if (normalized.status >= 500) recordApiCircuitFailure('Upstream status ' + normalized.status, env);
+    if (normalized.status >= 500) recordApiCircuitFailure('Upstream status ' + normalized.status + ' (direct)', env);
     else recordApiCircuitSuccess();
     return normalized;
   } catch (e) {
-    recordApiCircuitFailure(e, env);
-    return new Response(JSON.stringify({ status: 'error', message: 'Upstream request failed: ' + String(e) }), {
+    const errMsg = String(e.message || e);
+    recordApiCircuitFailure('Worker Exception: ' + errMsg, env);
+    return new Response(JSON.stringify({ 
+      status: 'error', 
+      message: 'Upstream request failed: ' + errMsg,
+      request_id: requestId,
+      tip: 'Check APP_GAS_URL and Google Apps Script deployment status.'
+    }), {
       status: 502,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store',
         'X-Api-Contract': 'json-v1',
+        'X-Request-Id': String(requestId || ''),
         ...corsHeadersFor(request, env)
       }
     });
